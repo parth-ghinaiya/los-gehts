@@ -9,7 +9,7 @@
   const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
 
   /* Line icons, 24×24, drawn in the surrounding text colour.
-     Shapes from Feather (MIT licence); the flame from Lucide (ISC licence). */
+     Shapes from Feather (MIT licence); the flame from Lucide (ISC licence); the bean is our own. */
   const ICONS = {
     book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
     repeat: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
@@ -31,6 +31,8 @@
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
     hash: '<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>',
     info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    cup: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
+    bean: '<ellipse cx="12" cy="12" rx="6.5" ry="9.5" transform="rotate(35 12 12)"/><path d="M7.2 17.6c5.2-2 .6-8.6 9.6-11.2"/>',
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
   };
   const icon = (name, cls) => '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>';
@@ -46,7 +48,7 @@
     sessions: 0,
     streak: { last: 0, count: 0, best: 0 },
     drills: { gender: 0, numbers: 0, verbs: 0 }, // best streaks
-    settings: { theme: 'auto', slow: false, auto: true },   // per device, never overwritten by sync
+    settings: { theme: 'auto', slow: false, auto: true, level: '' },   // per device, never overwritten by sync
     updatedAt: 0,                                // ms, last local change
     epoch: 0,                                    // ms of the last reset/import; a higher epoch replaces older data
   });
@@ -84,6 +86,7 @@
       theme: ['auto', 'light', 'dark'].includes(se.theme) ? se.theme : 'auto',
       slow: se.slow === true,
       auto: se.auto !== false,
+      level: ['a1', 'a2', 'b1'].includes(se.level) ? se.level : '',   // '' = follow progress
     };
     return d;
   };
@@ -111,7 +114,7 @@
 
   const CARDS = [];
   D.UNITS.forEach((u, ui) => u.words.forEach((w) => {
-    CARDS.push(Object.assign({}, w, { unit: u.id, ui, id: u.id + '|' + deText(w) }));
+    CARDS.push(Object.assign({}, w, { unit: u.id, level: u.level, ui, id: u.id + '|' + deText(w) }));
   }));
   const unitById = (id) => D.UNITS.find((u) => u.id === id);
   const cardsOf = (u) => CARDS.filter((c) => c.unit === u.id);
@@ -143,6 +146,28 @@
     s.last = t;
     s.best = Math.max(s.best, s.count);
   };
+  /* ---- levels (A1, A2, B1): only those that have units ---- */
+  const unitsOf = (levelId) => D.UNITS.filter((u) => u.level === levelId);
+  const LEVELS = D.LEVELS.filter((l) => unitsOf(l.id).length > 0);
+  const levelById = (id) => LEVELS.find((l) => l.id === id);
+  const levelIdx = (id) => LEVELS.findIndex((l) => l.id === id);
+  const unitNoIn = (u) => unitsOf(u.level).indexOf(u);   // position inside its own level
+  const levelStat = (l) => {
+    const stats = unitsOf(l.id).map(unitStat);
+    const sum = (k) => stats.reduce((n, x) => n + x[k], 0);
+    const words = sum('n');
+    return {
+      units: stats.length, unitsDone: stats.filter((x) => x.done).length,
+      words, seen: sum('seen'), strong: sum('strong'),
+      pct: Math.round((sum('seen') / words) * 100), done: stats.every((x) => x.done),
+    };
+  };
+  /* The level on screen: the one picked by hand, else the first that is not finished. */
+  const currentLevel = () => levelById(S.settings.level) || LEVELS.find((l) => !levelStat(l).done) || LEVELS[LEVELS.length - 1];
+  /* How well a word is known, 0–3, for the small meter next to it. */
+  const strength = (c) => { const x = st(c); return x.seen === 0 ? 0 : x.box <= 2 ? 1 : x.box <= 4 ? 2 : 3; };
+  const STRENGTH = ['New', 'Learning', 'Familiar', 'Strong'];
+
   const streakNow = () => (S.streak.last >= dayNum() - 1 ? S.streak.count : 0);
 
   /* ====================================================================
@@ -395,51 +420,84 @@
   /* ====================================================================
      Home
      ==================================================================== */
+  /* Progress ring: share of a level's words that have been practised at least once. */
+  const ring = (pct, label) => {
+    const r = 20;
+    const len = 2 * Math.PI * r;
+    return '<svg class="ring" viewBox="0 0 48 48" role="img" aria-label="' + esc(label) + '">' +
+      '<circle class="ring-bg" cx="24" cy="24" r="' + r + '"/>' +
+      '<circle class="ring-fg" cx="24" cy="24" r="' + r + '" stroke-dasharray="' + len.toFixed(1) + '" stroke-dashoffset="' + (len * (1 - pct / 100)).toFixed(1) + '" transform="rotate(-90 24 24)"/>' +
+      '<text class="ring-t" x="24" y="24">' + pct + '%</text></svg>';
+  };
+
   const viewHome = () => {
     const h = new Date().getHours();
     const hello = h < 11 ? 'Guten Morgen!' : h < 18 ? 'Guten Tag!' : 'Guten Abend!';
     const due = dueCards().length;
     const seen = seenCards().length;
     const strong = CARDS.filter((c) => st(c).box >= 3).length;
-    const stats = D.UNITS.map(unitStat);
-    const nextIdx = stats.findIndex((s) => !s.done);
-    const next = nextIdx >= 0 ? D.UNITS[nextIdx] : null;
+    const lv = currentLevel();
+    const units = unitsOf(lv.id);
+    const stats = units.map(unitStat);
+    const nextIdx = stats.findIndex((x) => !x.done);
+    const next = nextIdx >= 0 ? units[nextIdx] : null;
     const started = seen > 0;
 
     const plan = [];
     if (due) plan.push([icon('repeat'), 'Review ' + due + ' word' + (due === 1 ? '' : 's'), 'Due today — do these first', '#/review', 'Review']);
-    if (next) plan.push([unitNo(nextIdx), (stats[nextIdx].seen ? 'Continue' : 'Start') + ': ' + next.title, next.sub, '#/unit/' + next.id, 'Open']);
+    if (next) plan.push([unitNo(nextIdx), (stats[nextIdx].seen ? 'Continue' : 'Start') + ': ' + next.title, lv.name + ' · ' + next.sub, '#/unit/' + next.id, 'Open']);
     plan.push([icon('zap'), 'Two-minute drill', 'der/die/das, numbers or verbs', '#/drills', 'Drill']);
 
     app.innerHTML = `
       <section class="hero">
         <div class="card">
+          <span class="eyebrow">Heute · today</span>
           <h1>${hello} ${sayBtn(hello)}</h1>
-          <p class="lede">${started ? 'Here is today’s plan. Fifteen minutes is enough.' : 'Learn German from zero in short daily sessions: read a small idea, hear it, then pull it back out of memory.'}</p>
+          <p class="lede">${started ? 'Here is today’s plan. Fifteen minutes — about one cup of coffee.' : 'Learn German from zero to B1 in short daily sessions: read a small idea, hear it, then pull it back out of memory.'}</p>
           <ol class="plan">
             ${plan.map((p) => `<li><span class="ico">${p[0]}</span><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><a class="btn ${p === plan[0] ? 'primary' : ''}" href="${p[3]}">${p[4]}</a></li>`).join('')}
           </ol>
         </div>
         <div class="stats">
-          <div class="stat"><b>${icon('flame', 'flame')}${streakNow()}</b><span>day streak (best ${S.streak.best})</span></div>
-          <div class="stat"><b>${S.xp}</b><span>XP earned</span></div>
+          <div class="stat"><b>${icon('cup', 'accent')}${streakNow()}</b><span>day streak (best ${S.streak.best})</span></div>
+          <div class="stat"><b>${icon('bean', 'accent')}${S.xp}</b><span>Bohnen — beans earned (XP)</span></div>
           <div class="stat"><b>${seen}<small> / ${CARDS.length}</small></b><span>words met</span></div>
           <div class="stat"><b>${strong}</b><span>words strong (7+ day memory)</span></div>
         </div>
       </section>
 
       <section>
-        <div class="sec-h"><h2>Your path</h2><small>${D.UNITS.length} units · beginner (A1) · any order works, top to bottom is easiest</small></div>
+        <div class="sec-h"><div><span class="eyebrow">Fortschritt · progress</span><h2>Your course</h2></div><small>Pick a level to see its units</small></div>
+        <div class="levels">
+          ${LEVELS.map((l) => {
+            const x = levelStat(l);
+            return `<a class="card level ${l.id === lv.id ? 'on' : ''}" href="#/level/${l.id}" ${l.id === lv.id ? 'aria-current="true"' : ''}>
+              ${ring(x.pct, l.name + ': ' + x.pct + '% of words practised')}
+              <div>
+                <span class="roast r-${l.id}" title="${esc(l.roastEn)}">${esc(l.roast)}</span>
+                <h3>${l.name} · ${esc(l.title)}</h3>
+                <p>${x.unitsDone} of ${x.units} units · ${x.seen} of ${x.words} words</p>
+                <div class="bar" title="${x.strong} of ${x.words} words strong"><i style="width:${Math.round((x.strong / x.words) * 100)}%"></i></div>
+                <small>${x.strong} strong${l.exam ? ' · prepares for ' + esc(l.exam) : ''}</small>
+              </div>
+            </a>`;
+          }).join('')}
+        </div>
+      </section>
+
+      <section id="path">
+        <div class="sec-h"><div><span class="eyebrow">Dein Weg · your path</span><h2>${lv.name} units</h2></div><small>${esc(lv.blurb)}</small></div>
         <div class="path">
-          ${D.UNITS.map((u, i) => {
-            const s = stats[i];
-            const tag = s.done ? '<span class="tag done">' + icon('check') + 'Done</span>' : i === nextIdx ? '<span class="tag next">Up next</span>' : '';
-            return `<a class="card unit ${s.done ? 'done' : i === nextIdx ? 'next' : ''}" href="#/unit/${u.id}">
+          ${units.map((u, i) => {
+            const x = stats[i];
+            const tag = x.done ? '<span class="tag done">' + icon('check') + 'Done</span>' : i === nextIdx ? '<span class="tag next">Up next</span>' : '';
+            return `<a class="card unit ${x.done ? 'done' : i === nextIdx ? 'next' : ''}" href="#/unit/${u.id}">
               ${tag}
-              <span class="ico">${s.done ? icon('check') : unitNo(i)}</span>
+              <span class="ico">${x.done ? icon('check') : unitNo(i)}</span>
               <h3>${esc(u.title)}</h3>
               <p>${esc(u.sub)}</p>
-              <div class="bar" title="${s.seen} of ${s.n} words practised"><i style="width:${s.pct}%"></i></div>
+              <div class="bar" title="${x.seen} of ${x.n} words practised"><i style="width:${x.pct}%"></i></div>
+              <small class="count">${x.seen} / ${x.n} words</small>
             </a>`;
           }).join('')}
         </div>
@@ -454,11 +512,17 @@
     const s = unitStat(u);
     const prev = D.UNITS[i - 1];
     const nxt = D.UNITS[i + 1];
+    const lv = levelById(u.level);
+    const no = unitNoIn(u);
 
     app.innerHTML = `
-      ${backLink('#/', 'All units')}
-      <div class="unit-head"><span class="ico">${unitNo(i)}</span><div><small>Unit ${i + 1}</small><h1>${esc(u.title)}</h1></div></div>
+      ${backLink('#/level/' + u.level, lv.name + ' units')}
+      <div class="unit-head"><span class="ico">${unitNo(no)}</span><div><small>${lv.name} · Unit ${no + 1} of ${unitsOf(u.level).length}</small><h1>${esc(u.title)}</h1></div></div>
       <p class="lede">${esc(u.goal)}</p>
+      <div class="unit-prog">
+        <div class="bar" title="${s.seen} of ${s.n} words practised"><i style="width:${s.pct}%"></i></div>
+        <small>${s.seen} of ${s.n} words practised · ${s.strong} strong${u.cloze ? ' · ' + u.cloze.length + ' gap-fill questions' : ''}</small>
+      </div>
 
       <section>
         <div class="sec-h"><h2>Key ideas</h2><small>Read once, tap the German to hear it</small></div>
@@ -473,7 +537,7 @@
               <span class="de">${deHtml(c)}${c.pl ? `<span class="pl">pl. ${esc(c.pl)}</span>` : ''}</span>
               <span class="en">${esc(c.en)}</span>
               ${c.ex ? `<span class="ex"><button type="button" data-say="${esc(c.ex)}">${esc(c.ex)}</button> <i class="muted">${esc(c.exEn)}</i></span>` : ''}
-            </div></div>`).join('')}
+            </div><span class="str" data-s="${strength(c)}" title="${STRENGTH[strength(c)]}" aria-label="${STRENGTH[strength(c)]}"><i></i><i></i><i></i></span></div>`).join('')}
         </div>
       </section>
 
@@ -541,15 +605,23 @@
   const genderEx = (cards, count) => shuffle(cards.filter((c) => c.art)).slice(0, count)
     .map((c) => ({ kind: 'gender', card: c, nograde: true }));
 
+  /* Gap-fill items are not spaced-repetition cards; `sent` lets feedback and the
+     "worth another look" list treat them like sentences. */
+  const clozeEx = (list, count) => shuffle(list || []).slice(0, count)
+    .map((item) => ({ kind: 'cloze', item, sent: { de: item.de.replace('___', item.answer), en: item.en } }));
+
   const unitQueue = (u) => {
     const cs = shuffle(cardsOf(u)).sort((a, b) => st(a).seen - st(b).seen || st(a).box - st(b).box).slice(0, 10);
-    return shuffle(cs.map(wordEx).concat(genderEx(cs, 3))).concat(sentenceEx(u.sentences, 4));
+    return shuffle(cs.map(wordEx).concat(genderEx(cs, 3)))
+      .concat(clozeEx(u.cloze, 4))
+      .concat(sentenceEx(u.sentences, u.cloze ? 3 : 4));
   };
 
   const reviewQueue = (cards) => {
     const startedUnits = D.UNITS.filter((u) => unitStat(u).seen > 0);
     const sents = startedUnits.length ? sentenceEx(startedUnits.flatMap((u) => u.sentences), 3) : [];
-    return shuffle(cards.map(wordEx).concat(genderEx(cards, 3))).concat(sents);
+    const gaps = clozeEx(startedUnits.flatMap((u) => u.cloze || []), 2);
+    return shuffle(cards.map(wordEx).concat(genderEx(cards, 3))).concat(gaps).concat(sents);
   };
 
   const startSession = (cfg) => {
@@ -596,6 +668,29 @@
             b.classList.add(ok ? 'ok' : 'bad');
             $$('#q .opt')[ex.opts.findIndex((o) => o.id === ex.card.id)].classList.add('ok');
             finish(ex, ok);
+          };
+        });
+      },
+    },
+
+    cloze: {
+      html(ex) {
+        if (!ex.opts) ex.opts = shuffle([ex.item.answer].concat(ex.item.wrong));
+        const parts = ex.item.de.split('___');
+        return '<p class="lbl">Sprachbausteine — fill the gap' + retryTag(ex) + '</p>' +
+          '<h2 class="big sm gapline">' + esc(parts[0]) + '<span class="gap" id="gap">&nbsp;</span>' + esc(parts[1]) + '</h2>' +
+          optsHtml(ex.opts.map(esc));
+      },
+      bind(ex) {
+        $$('#q .opt').forEach((b) => {
+          b.onclick = () => {
+            const ok = ex.opts[+b.dataset.i] === ex.item.answer;
+            b.classList.add(ok ? 'ok' : 'bad');
+            $$('#q .opt')[ex.opts.indexOf(ex.item.answer)].classList.add('ok');
+            const gap = $('#gap');
+            gap.textContent = ex.item.answer;
+            gap.classList.add('filled');
+            finish(ex, ok, ex.item.why ? '<p>' + icon('info') + ' ' + esc(ex.item.why) + '</p>' : '');
           };
         });
       },
@@ -772,14 +867,15 @@
 
     app.innerHTML = `
       <div class="session"><div class="card done">
-        <div class="badge ${acc >= 60 ? 'ok' : ''}">${icon(acc >= 90 ? 'award' : acc >= 60 ? 'check' : 'trend')}</div>
+        <div class="badge ${acc >= 60 ? 'ok' : ''}">${icon(acc >= 90 ? 'award' : acc >= 60 ? 'cup' : 'trend')}</div>
         <h1>Geschafft!</h1>
         <p class="muted">${esc(msg)}</p>
         <div class="stats">
           <div class="stat"><b>${acc}%</b><span>right first time</span></div>
           <div class="stat"><b>+${sess.xp}</b><span>XP</span></div>
-          <div class="stat"><b>${icon('flame', 'flame')}${streakNow()}</b><span>day streak</span></div>
+          <div class="stat"><b>${icon('cup', 'accent')}${streakNow()}</b><span>day streak</span></div>
         </div>
+        ${u ? `<div class="lvl-line"><span>${levelById(u.level).name} progress</span><div class="bar"><i style="width:${levelStat(levelById(u.level)).pct}%"></i></div><b>${levelStat(levelById(u.level)).pct}%</b></div>` : ''}
         ${Sync.on() ? `<p class="saved" id="syncStatus">${esc(Sync.text())}</p>` : ''}
         ${missed.length ? '<p class="muted">Worth another look:</p><ul class="missed">' + missed.map((ex) => {
           const t = ex.card ? deText(ex.card) : ex.sent.de;
@@ -859,7 +955,8 @@
   const viewGender = () => {
     const tok = viewTok;
     const seen = new Set();
-    const pool = CARDS.filter((c) => c.art && !seen.has(c.de) && seen.add(c.de));
+    const reach = levelIdx(currentLevel().id);   // nouns from the level on screen and the ones below it
+    const pool = CARDS.filter((c) => c.art && levelIdx(c.level) <= reach && !seen.has(c.de) && seen.add(c.de));
     let cur = null;
     let streak = 0;
     let locked = false;
@@ -1024,16 +1121,22 @@
   /* ====================================================================
      Grammar sheets + guide
      ==================================================================== */
-  const viewSheets = () => {
+  const viewSheets = (levelId) => {
+    const lv = levelById(levelId) || currentLevel();
+    const sheets = D.SHEETS.filter((x) => x.level === lv.id).sort((a, b) => (b.exam ? 1 : 0) - (a.exam ? 1 : 0));
     app.innerHTML = `
+      <span class="eyebrow">Grammatik · grammar</span>
       <h1>Grammar at a glance</h1>
       <p class="lede">Reference tables for when you need to look something up. Don’t memorise these — the units teach them one idea at a time.</p>
-      ${D.SHEETS.map((s, i) => `<details class="card sheet" ${i === 0 ? 'open' : ''}><summary>${s.title}</summary><div class="body">${fmt(s.html)}</div></details>`).join('')}`;
+      <div class="row"><nav class="seg" aria-label="Level">${LEVELS.map((l) => `<a href="#/grammar/${l.id}" class="${l.id === lv.id ? 'on' : ''}" ${l.id === lv.id ? 'aria-current="true"' : ''}>${l.name}</a>`).join('')}</nav>
+        <small>${sheets.length} sheets · ${esc(lv.title)}${lv.exam ? ' · ' + esc(lv.exam) : ''}</small></div>
+      <section>${sheets.map((x, i) => `<details class="card sheet" ${i === 0 ? 'open' : ''}><summary>${x.title}</summary><div class="body">${fmt(x.html)}</div></details>`).join('')}</section>`;
   };
 
   const viewGuide = () => {
     const t = S.settings.theme;
     app.innerHTML = `
+      <span class="eyebrow">Anleitung · guide</span>
       <h1>How to learn with this</h1>
       <p class="lede">The fastest route is not more hours — it is the right kind of practice, a little every day.</p>
 
@@ -1162,12 +1265,20 @@
     document.body.classList.remove('in-session');
     const [a, b] = location.hash.replace(/^#\/?/, '').split('/');
     let section = 'learn';
+    const fromHome = !!$('#path');   // true while the home page is on screen
 
     if (a === 'unit' && unitById(b)) viewUnit(unitById(b));
     else if (a === 'practice' && unitById(b)) startUnit(unitById(b));
     else if (a === 'review') { section = 'review'; viewReview(); }
     else if (a === 'drills') { section = 'drills'; ({ gender: viewGender, numbers: viewNumbers, verbs: viewVerbs }[b] || viewDrills)(); }
-    else if (a === 'grammar') { section = 'grammar'; viewSheets(); }
+    else if (a === 'grammar') { section = 'grammar'; viewSheets(b); }
+    else if (a === 'level' && levelById(b)) {
+      S.settings.level = b;   // a device preference: stored, not synced
+      persist();
+      history.replaceState(null, '', '#/');
+      viewHome();
+      keepScroll = keepScroll === true || fromHome;   // picking a level on the home page must not jump to the top
+    }
     else if (a === 'guide') { section = 'guide'; viewGuide(); }
     else viewHome();
 

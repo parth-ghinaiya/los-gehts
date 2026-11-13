@@ -1,4 +1,6 @@
-/* Course content. Plain script (no modules, no fetch) so index.html works straight from disk.
+/* Course content: shared helpers, the level list and the A1 course.
+   A2 and B1 live in js/courses/ and register themselves through DE_DATA.addUnits().
+   Plain scripts (no modules, no fetch) so index.html works straight from disk.
    In tip/sheet HTML, {{text}} becomes a tappable chip that speaks the German text. */
 (function (root) {
   'use strict';
@@ -6,6 +8,9 @@
   const n = (art, de, pl, en, ex, exEn) => ({ art, de, pl, en, ex, exEn });   // noun
   const x = (de, en, ex, exEn) => ({ de, en, ex, exEn });                     // anything else
   const s = (de, en, alt) => ({ de, en, alt: alt || [] });                    // sentence (+ accepted word orders)
+  /* Gap-fill ("Sprachbausteine" in telc exams): `de` holds exactly one ___, `answer` fills it,
+     `wrong` lists three wrong options, `why` is a one-line reason shown after answering. */
+  const c = (de, answer, wrong, en, why) => ({ de, answer, wrong, en, why: why || '' });
   const g = (k, t) => '<b class="g-' + k + '">' + (t || k) + '</b>';          // gender-coloured text
   const tbl = (head, rows) =>
     '<div class="tblwrap"><table class="tbl"><thead><tr>' +
@@ -773,7 +778,7 @@
   const METHOD = [
     ['repeat', 'Spaced repetition', 'Each word comes back just before you would forget it: after 1 day, then 3, 7, 14, 30, 60. Spacing practice is one of the most replicated findings in memory research.'],
     ['edit', 'Recall, don’t re-read', 'You choose, type and build answers instead of staring at lists. Pulling a word out of memory is what makes it stick. Exercises get harder as a word gets stronger.'],
-    ['target', 'Most useful words first', 'About 250 core beginner words and the sentence patterns that carry everyday conversation. Nouns always come with their article and colour.'],
+    ['target', 'Most useful words first', 'Each level teaches the core words and sentence patterns that carry everyday conversation, in the order you will need them. Nouns always come with their article and colour.'],
     ['volume', 'Sound from day one', 'Everything German is tappable and spoken aloud. Repeat it out loud every time — your mouth needs the practice as much as your memory.'],
     ['layers', 'One grammar idea per unit', 'A short explicit rule, then immediate use. Research on language teaching favours combining clear explanations with lots of input over either alone.'],
     ['clock', 'Little and often', 'Fifteen focused minutes a day beats a two-hour weekend session. The streak counter is there to protect the habit.'],
@@ -791,5 +796,23 @@
     ['Tandem', 'https://www.tandem.net', 'Language exchange with native speakers. No app replaces actually talking — start around unit 6.'],
   ];
 
-  root.DE_DATA = { UNITS, VERBS, SHEETS, METHOD, RESOURCES };
+  /* Levels follow the Common European Framework (CEFR). A2 and B1 are built towards the
+     telc Deutsch A2 and telc Deutsch B1 exams. `roast` is the level's nickname in the app. */
+  const LEVELS = [
+    { id: 'a1', name: 'A1', title: 'Beginner', roast: 'Helle Röstung', roastEn: 'light roast', exam: '',
+      blurb: 'First words and sentences: introduce yourself, order, ask the way, talk about your day.' },
+    { id: 'a2', name: 'A2', title: 'Elementary', roast: 'Mittlere Röstung', roastEn: 'medium roast', exam: 'telc Deutsch A2',
+      blurb: 'Everyday life in full sentences: tell what happened, give reasons, compare, ask politely.' },
+    { id: 'b1', name: 'B1', title: 'Intermediate', roast: 'Dunkle Röstung', roastEn: 'dark roast', exam: 'telc Deutsch B1',
+      blurb: 'Independent German: tell stories, argue a point, write letters, plan together.' },
+  ];
+  UNITS.forEach((u) => { u.level = 'a1'; });
+  SHEETS.forEach((sh) => { sh.level = 'a1'; });
+
+  root.DE_BUILD = { n, x, s, c, g, tbl };
+  root.DE_DATA = {
+    LEVELS, UNITS, VERBS, SHEETS, METHOD, RESOURCES,
+    addUnits(level, units) { units.forEach((u) => { u.level = level; UNITS.push(u); }); },
+    addSheets(level, sheets) { sheets.forEach((sh) => { sh.level = level; SHEETS.push(sh); }); },
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

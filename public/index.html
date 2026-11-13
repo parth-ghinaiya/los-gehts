@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#fafaf8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e0e0c" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f9f9f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
 <title>Los geht's — Learn German</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23f2b90f'/%3E%3Cpath d='M12.5 9.5 20 16l-7.5 6.5' fill='none' stroke='%2317160f' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23644a40'/%3E%3Cg fill='none' stroke='%23ffdfb5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 14h12v4a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z'/%3E%3Cpath d='M21 15h1a2.5 2.5 0 0 1 0 5h-1.2'/%3E%3Cpath d='M12.5 6.5c0 1.6 1.4 1.6 1.4 3.2M16.5 6.5c0 1.6 1.4 1.6 1.4 3.2'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <header class="top">
-  <a class="brand" href="#/" aria-label="Los geht's — home"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#f2b90f"/><path d="M12.5 9.5 20 16l-7.5 6.5" fill="none" stroke="#17160f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Los geht’s</span></a>
+  <a class="brand" href="#/" aria-label="Los geht's — home"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#644a40"/><g fill="none" stroke="#ffdfb5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14h12v4a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z"/><path d="M21 15h1a2.5 2.5 0 0 1 0 5h-1.2"/><path d="M12.5 6.5c0 1.6 1.4 1.6 1.4 3.2M16.5 6.5c0 1.6 1.4 1.6 1.4 3.2"/></g></svg><span>Los geht’s</span></a>
   <nav id="nav" aria-label="Main">
     <a href="#/" data-nav="learn"><i data-icon="book"></i><span>Learn</span></a>
     <a href="#/review" data-nav="review"><i data-icon="repeat"></i><span>Review</span><em id="dueBadge" hidden></em></a>
@@ -20,7 +20,7 @@
     <a href="#/guide" data-nav="guide"><i data-icon="compass"></i><span>Guide</span></a>
   </nav>
   <div class="chip warn" id="syncChip" title="Recent progress is saved on this device only. It will reach your account when the server is reachable." hidden><i data-icon="cloud-off"></i><span>Not synced</span></div>
-  <div class="chip" id="streakChip" title="Day streak"><i data-icon="flame" data-icon-class="flame"></i><b>0</b></div>
+  <div class="chip" id="streakChip" title="Day streak"><i data-icon="cup" data-icon-class="accent"></i><b>0</b></div>
 </header>
 
 <main id="app" tabindex="-1"></main>
@@ -29,6 +29,11 @@
 
 <script src="js/util.js"></script>
 <script src="js/data.js"></script>
+<script src="js/courses/a2-1.js"></script>
+<script src="js/courses/a2-2.js"></script>
+<script src="js/courses/b1-1.js"></script>
+<script src="js/courses/b1-2.js"></script>
+<script src="js/courses/telc.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

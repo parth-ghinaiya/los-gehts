@@ -1,19 +1,21 @@
 /* Sign-in page. Self-contained: the app's own stylesheet is not served before sign-in.
    Token values mirror css/style.css. */
 :root {
-  --bg: #fafaf8; --surface: #ffffff; --line: #e8e6df; --line-strong: #d3d0c6;
-  --ink: #17160f; --ink-2: #4a4840; --muted: #6e6b61; --bad: #c0303a;
-  --primary: #17160f; --primary-hover: #2e2c23; --on-primary: #ffffff;
-  --shadow: 0 1px 2px rgba(23, 22, 15, .04), 0 8px 24px rgba(23, 22, 15, .07);
-  --font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --bg: oklch(0.9821 0 0); --surface: oklch(0.9911 0 0); --line: oklch(0.8822 0 0); --line-strong: oklch(0.80 0 0);
+  --ink: oklch(0.2435 0 0); --ink-2: oklch(0.38 0 0); --muted: oklch(0.5032 0 0); --bad: oklch(0.50 0.19 33);
+  --primary: oklch(0.4341 0.0392 41.9938); --primary-hover: oklch(0.37 0.04 42); --on-primary: oklch(1 0 0);
+  --accent-ico: oklch(0.62 0.12 55);
+  --shadow: 0 1px 3px 0 hsl(0 0% 0% / .10), 0 4px 6px -1px hsl(0 0% 0% / .10);
+  --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e0e0c; --surface: #171714; --line: #2a2925; --line-strong: #3f3d36;
-    --ink: #f5f3eb; --ink-2: #cbc8bc; --muted: #9c988b; --bad: #ff8589;
-    --primary: #f5f3eb; --primary-hover: #ffffff; --on-primary: #17160f;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    --bg: oklch(0.1776 0 0); --surface: oklch(0.2134 0 0); --line: oklch(0.2351 0.0115 91.7467); --line-strong: oklch(0.4017 0 0);
+    --ink: oklch(0.9491 0 0); --ink-2: oklch(0.85 0 0); --muted: oklch(0.7699 0 0); --bad: oklch(0.76 0.14 33);
+    --primary: oklch(0.9247 0.0524 66.1732); --primary-hover: oklch(0.96 0.04 66); --on-primary: oklch(0.2029 0.0240 200.1962);
+    --accent-ico: oklch(0.80 0.10 66);
     color-scheme: dark;
   }
 }
@@ -30,32 +32,33 @@ body {
 main { flex: 1; display: grid; place-items: center; padding: 24px 16px; }
 .card {
   width: 100%; max-width: 400px; padding: 36px 32px 28px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
 }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; font-weight: 700; font-size: 1.0625rem; letter-spacing: -.02em; }
+.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; font-family: var(--font-serif); font-weight: 600; font-size: 1.1875rem; letter-spacing: -.01em; }
+.eyebrow { display: block; margin-bottom: 6px; font: 700 .6875rem/1.2 var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--accent-ico); }
 .logo { width: 32px; height: 32px; }
-h1 { margin: 0 0 6px; font-size: 1.5rem; line-height: 1.2; font-weight: 700; letter-spacing: -.025em; }
+h1 { margin: 0 0 6px; font-family: var(--font-serif); font-size: 1.75rem; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
 .lede { margin: 0 0 28px; color: var(--ink-2); }
 
 label { display: block; margin-bottom: 8px; font-weight: 600; font-size: .875rem; }
 input[type="password"] {
   width: 100%; height: 48px; padding: 0 14px; font: inherit; color: inherit;
-  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px;
   transition: border-color .12s, box-shadow .12s;
 }
-input[type="password"]:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 12%, transparent); }
+input[type="password"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 18%, transparent); }
 
 .message { min-height: 1.55em; margin: 10px 0 14px; color: var(--bad); font-size: .875rem; font-weight: 500; }
 
 button {
   width: 100%; height: 48px; padding: 0 20px; font: inherit; font-weight: 600; cursor: pointer;
-  color: var(--on-primary); background: var(--primary); border: 1px solid var(--primary); border-radius: 12px;
+  color: var(--on-primary); background: var(--primary); border: 1px solid var(--primary); border-radius: 8px;
   transition: background .12s, transform .06s;
 }
 button:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
 button:active { transform: translateY(1px); }
 button:disabled { opacity: .5; cursor: default; }
-button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .foot { margin: 20px 0 0; text-align: center; color: var(--muted); font-size: .8125rem; }
 .noscript { padding: 0 24px 24px; text-align: center; color: var(--muted); }
