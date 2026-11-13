@@ -8,6 +8,34 @@
   const $ = (q, r) => (r || document).querySelector(q);
   const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
 
+  /* Line icons, 24×24, drawn in the surrounding text colour.
+     Shapes from Feather (MIT licence); the flame from Lucide (ISC licence). */
+  const ICONS = {
+    book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+    repeat: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+    zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    table: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>',
+    compass: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+    volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+    flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+    'arrow-right': '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+    'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+    'cloud-off': '<path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/>',
+    award: '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+    trend: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+    hash: '<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+    external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+  };
+  const icon = (name, cls) => '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>';
+  const unitNo = (i) => String(i + 1).padStart(2, '0');
+
   /* ====================================================================
      State (localStorage)
      ==================================================================== */
@@ -169,9 +197,9 @@
       return {
         off: '',
         idle: 'Signed in.',
-        busy: 'Syncing …',
-        ok: 'Synced at ' + time + '.',
-        offline: 'Could not reach the server. Progress is safe on this device and will sync later.',
+        busy: 'Saving …',
+        ok: 'Saved to your account at ' + time + '.',
+        offline: 'Saved on this device only. It will reach your account when the server is reachable.',
       }[state];
     };
     const setState = (s) => {
@@ -179,6 +207,8 @@
       at = Date.now();
       const el = $('#syncStatus');
       if (el) el.textContent = text();
+      const chip = $('#syncChip');
+      if (chip) chip.hidden = state !== 'offline';
     };
 
     const call = async (method, body) => {
@@ -248,6 +278,7 @@
       if (!dirty || !on) return;
       if (busy) { timer = setTimeout(flush, 1500); return; }
       busy = true;
+      setState('busy');
       try { await push(); } catch (e) { failed(e); } finally { busy = false; }
     };
 
@@ -324,7 +355,7 @@
     synth.speak(u);
   };
   const autoSay = (text) => { if (S.settings.auto) say(text); };
-  const sayBtn = (text) => '<button type="button" class="say" data-say="' + esc(text) + '" aria-label="Listen" title="Listen">🔊</button>';
+  const sayBtn = (text) => '<button type="button" class="say" data-say="' + esc(text) + '" aria-label="Listen" title="Listen">' + icon('volume') + '</button>';
 
   /* {{German}} in content -> tappable, speakable chip */
   const fmt = (html) => html.replace(/\{\{(.+?)\}\}/g, (_, t) => '<button type="button" class="say-chip" data-say="' + esc(t) + '">' + esc(t) + '</button>');
@@ -358,7 +389,7 @@
   };
 
   const go = (hash) => { if (location.hash === hash) route(); else location.hash = hash; };
-  const backLink = (hash, label) => '<a class="back" href="' + hash + '">← ' + label + '</a>';
+  const backLink = (hash, label) => '<a class="back" href="' + hash + '">' + icon('arrow-left') + label + '</a>';
   const umlautBar = () => '<div class="uml">' + ['ä', 'ö', 'ü', 'ß'].map((ch) => '<button type="button" class="key" data-ins="' + ch + '" aria-label="Insert ' + ch + '">' + ch + '</button>').join('') + '</div>';
 
   /* ====================================================================
@@ -376,21 +407,21 @@
     const started = seen > 0;
 
     const plan = [];
-    if (due) plan.push(['🔁', 'Review ' + due + ' word' + (due === 1 ? '' : 's'), 'Due today — do these first', '#/review', 'Review']);
-    if (next) plan.push([next.icon, (stats[nextIdx].seen ? 'Continue' : 'Start') + ': ' + next.title, next.sub, '#/unit/' + next.id, 'Open']);
-    plan.push(['⚡', 'Two-minute drill', 'der/die/das, numbers or verbs', '#/drills', 'Drill']);
+    if (due) plan.push([icon('repeat'), 'Review ' + due + ' word' + (due === 1 ? '' : 's'), 'Due today — do these first', '#/review', 'Review']);
+    if (next) plan.push([unitNo(nextIdx), (stats[nextIdx].seen ? 'Continue' : 'Start') + ': ' + next.title, next.sub, '#/unit/' + next.id, 'Open']);
+    plan.push([icon('zap'), 'Two-minute drill', 'der/die/das, numbers or verbs', '#/drills', 'Drill']);
 
     app.innerHTML = `
       <section class="hero">
         <div class="card">
-          <h1>${sayBtn(hello)} ${hello}</h1>
+          <h1>${hello} ${sayBtn(hello)}</h1>
           <p class="lede">${started ? 'Here is today’s plan. Fifteen minutes is enough.' : 'Learn German from zero in short daily sessions: read a small idea, hear it, then pull it back out of memory.'}</p>
           <ol class="plan">
-            ${plan.map((p) => `<li><span>${p[0]}</span><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><a class="btn ${p === plan[0] ? 'primary' : ''}" href="${p[3]}">${p[4]}</a></li>`).join('')}
+            ${plan.map((p) => `<li><span class="ico">${p[0]}</span><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><a class="btn ${p === plan[0] ? 'primary' : ''}" href="${p[3]}">${p[4]}</a></li>`).join('')}
           </ol>
         </div>
         <div class="stats">
-          <div class="stat"><b>🔥 ${streakNow()}</b><span>day streak (best ${S.streak.best})</span></div>
+          <div class="stat"><b>${icon('flame', 'flame')}${streakNow()}</b><span>day streak (best ${S.streak.best})</span></div>
           <div class="stat"><b>${S.xp}</b><span>XP earned</span></div>
           <div class="stat"><b>${seen}<small> / ${CARDS.length}</small></b><span>words met</span></div>
           <div class="stat"><b>${strong}</b><span>words strong (7+ day memory)</span></div>
@@ -402,11 +433,11 @@
         <div class="path">
           ${D.UNITS.map((u, i) => {
             const s = stats[i];
-            const tag = s.done ? '<span class="tag done">✓ done</span>' : i === nextIdx ? '<span class="tag next">next</span>' : '';
-            return `<a class="card unit ${s.done ? 'done' : ''}" href="#/unit/${u.id}">
+            const tag = s.done ? '<span class="tag done">' + icon('check') + 'Done</span>' : i === nextIdx ? '<span class="tag next">Up next</span>' : '';
+            return `<a class="card unit ${s.done ? 'done' : i === nextIdx ? 'next' : ''}" href="#/unit/${u.id}">
               ${tag}
-              <span class="ico">${u.icon}</span>
-              <h3><small>${i + 1}</small> ${esc(u.title)}</h3>
+              <span class="ico">${s.done ? icon('check') : unitNo(i)}</span>
+              <h3>${esc(u.title)}</h3>
               <p>${esc(u.sub)}</p>
               <div class="bar" title="${s.seen} of ${s.n} words practised"><i style="width:${s.pct}%"></i></div>
             </a>`;
@@ -426,7 +457,7 @@
 
     app.innerHTML = `
       ${backLink('#/', 'All units')}
-      <div class="unit-head"><span class="ico">${u.icon}</span><div><small>Unit ${i + 1}</small><h1>${esc(u.title)}</h1></div></div>
+      <div class="unit-head"><span class="ico">${unitNo(i)}</span><div><small>Unit ${i + 1}</small><h1>${esc(u.title)}</h1></div></div>
       <p class="lede">${esc(u.goal)}</p>
 
       <section>
@@ -457,9 +488,9 @@
         <div><b>${s.done ? 'All words practised' : s.seen ? s.seen + ' of ' + s.n + ' words practised' : 'Ready? About 5 minutes.'}</b><br>
           <small>${s.done ? 'Practise again any time — reviews will bring the words back.' : 'Each round covers 10 words and a few sentences.'}</small></div>
         <div class="row">
-          ${prev ? `<a class="btn" href="#/unit/${prev.id}" aria-label="Previous unit">←</a>` : ''}
-          <a class="btn primary" href="#/practice/${u.id}">Practise ${s.done ? 'again' : ''} →</a>
-          ${nxt ? `<a class="btn" href="#/unit/${nxt.id}" aria-label="Next unit">→</a>` : ''}
+          ${prev ? `<a class="btn icon" href="#/unit/${prev.id}" aria-label="Previous unit" title="Previous unit">${icon('arrow-left')}</a>` : ''}
+          <a class="btn primary" href="#/practice/${u.id}">${s.done ? 'Practise again' : 'Practise'}${icon('arrow-right')}</a>
+          ${nxt ? `<a class="btn icon" href="#/unit/${nxt.id}" aria-label="Next unit" title="Next unit">${icon('arrow-right')}</a>` : ''}
         </div>
       </div>`;
 
@@ -646,7 +677,7 @@
   const ruleNote = (c) => {
     const h = genderHint(c.de, c.art);
     if (!h) return '';
-    return '<p>' + (h.match ? '💡 ' + esc(h.text) + '.' : 'Exception: ' + esc(h.text.charAt(0).toLowerCase() + h.text.slice(1)) + ' — this one just has to be memorised.') + '</p>';
+    return '<p>' + (h.match ? icon('info') + ' ' + esc(h.text) + '.' : 'Exception: ' + esc(h.text.charAt(0).toLowerCase() + h.text.slice(1)) + ' — this one just has to be memorised.') + '</p>';
   };
 
   const evalTyped = (value, c) => {
@@ -671,7 +702,7 @@
     app.innerHTML = `
       <div class="session">
         <div class="sess-top">
-          <button type="button" class="quit" id="quit" aria-label="Quit session" title="Quit">✕</button>
+          <button type="button" class="quit" id="quit" aria-label="Quit session" title="Quit">${icon('x')}</button>
           <div class="bar"><i style="width:${pct}%"></i></div>
           <span class="count">${sess.i + 1} / ${sess.queue.length}</span>
         </div>
@@ -720,6 +751,7 @@
     const acc = sess.total ? Math.round((sess.first / sess.total) * 100) : 100;
     S.sessions++;
     save();
+    Sync.flush();   // a finished round is saved to the account at once
     updateChrome(sess.unit ? 'learn' : 'review');
     document.body.classList.remove('in-session');
     const u = sess.unit;
@@ -740,22 +772,23 @@
 
     app.innerHTML = `
       <div class="session"><div class="card done">
-        <div class="emoji">${acc >= 90 ? '🏆' : acc >= 60 ? '🎉' : '💪'}</div>
+        <div class="badge ${acc >= 60 ? 'ok' : ''}">${icon(acc >= 90 ? 'award' : acc >= 60 ? 'check' : 'trend')}</div>
         <h1>Geschafft!</h1>
         <p class="muted">${esc(msg)}</p>
         <div class="stats">
           <div class="stat"><b>${acc}%</b><span>right first time</span></div>
           <div class="stat"><b>+${sess.xp}</b><span>XP</span></div>
-          <div class="stat"><b>🔥 ${streakNow()}</b><span>day streak</span></div>
+          <div class="stat"><b>${icon('flame', 'flame')}${streakNow()}</b><span>day streak</span></div>
         </div>
+        ${Sync.on() ? `<p class="saved" id="syncStatus">${esc(Sync.text())}</p>` : ''}
         ${missed.length ? '<p class="muted">Worth another look:</p><ul class="missed">' + missed.map((ex) => {
           const t = ex.card ? deText(ex.card) : ex.sent.de;
           const h = ex.card ? deHtml(ex.card) : esc(ex.sent.de);
           return '<li>' + sayBtn(t) + '<span><b>' + h + '</b> — ' + esc(ex.card ? ex.card.en : ex.sent.en) + '</span></li>';
         }).join('') + '</ul>' : ''}
         <div class="row">
-          ${u && !s.done ? '<button type="button" class="btn primary" id="again">Next round →</button>' : ''}
-          ${u && s.done && nxt ? `<a class="btn primary" href="#/unit/${nxt.id}">Next unit: ${esc(nxt.title)} →</a>` : ''}
+          ${u && !s.done ? '<button type="button" class="btn primary" id="again">Next round' + icon('arrow-right') + '</button>' : ''}
+          ${u && s.done && nxt ? `<a class="btn primary" href="#/unit/${nxt.id}">Next unit: ${esc(nxt.title)}${icon('arrow-right')}</a>` : ''}
           ${u && s.done ? '<button type="button" class="btn" id="again">Practise again</button>' : ''}
           ${!u && moreDue ? '<button type="button" class="btn primary" id="more">Keep reviewing</button>' : ''}
           <a class="btn" href="#/">Home</a>
@@ -773,7 +806,7 @@
     const due = dueCards().length;
     const seen = seenCards().length;
     if (!seen) {
-      app.innerHTML = `<div class="card empty"><div class="emoji">🌱</div><h1>Nothing to review yet</h1>
+      app.innerHTML = `<div class="card empty"><div class="badge">${icon('layers')}</div><h1>Nothing to review yet</h1>
         <p class="muted">Words land here after you practise them in a unit, and come back right before you would forget them.</p>
         <a class="btn primary" href="#/unit/${D.UNITS[0].id}">Start unit 1</a></div>`;
       return;
@@ -782,7 +815,7 @@
     seenCards().forEach((c) => { const b = st(c).box; boxes[b <= 0 ? 0 : b <= 2 ? 1 : b <= 4 ? 2 : 3]++; });
     app.innerHTML = `
       <div class="card empty">
-        <div class="emoji">${due ? '🔁' : '✅'}</div>
+        <div class="badge ${due ? '' : 'ok'}">${icon(due ? 'repeat' : 'check')}</div>
         <h1>${due ? due + ' word' + (due === 1 ? '' : 's') + ' due' : 'All caught up'}</h1>
         <p class="muted">${due ? 'Reviewing right when a word is about to fade is what moves it into long-term memory.' : 'Nothing is due right now. You can still do an extra round on your weakest words.'}</p>
         <div class="row" style="justify-content:center">
@@ -811,9 +844,9 @@
       <h1>Drills</h1>
       <p class="lede">Fast, endless reps for the three things that only become automatic through volume. Two minutes each is plenty.</p>
       <div class="grid3">
-        <a class="card tile-link" href="#/drills/gender"><div class="emoji">🎨</div><h3>der · die · das</h3><p>See a noun, pick its article. Rules shown as you go. Best streak: ${S.drills.gender}</p></a>
-        <a class="card tile-link" href="#/drills/numbers"><div class="emoji">🔢</div><h3>Numbers</h3><p>Hear or read a German number, type the digits. Best streak: ${S.drills.numbers}</p></a>
-        <a class="card tile-link" href="#/drills/verbs"><div class="emoji">⚙️</div><h3>Verb forms</h3><p>Conjugate the ${D.VERBS.length} most useful verbs in the present tense. Best streak: ${S.drills.verbs}</p></a>
+        <a class="card tile-link" href="#/drills/gender"><div class="ico"><span class="gdots"><b class="g-der"></b><b class="g-die"></b><b class="g-das"></b></span></div><h3>der · die · das</h3><p>See a noun, pick its article. Rules shown as you go. Best streak: ${S.drills.gender}</p></a>
+        <a class="card tile-link" href="#/drills/numbers"><div class="ico">${icon('hash')}</div><h3>Numbers</h3><p>Hear or read a German number, type the digits. Best streak: ${S.drills.numbers}</p></a>
+        <a class="card tile-link" href="#/drills/verbs"><div class="ico">${icon('edit')}</div><h3>Verb forms</h3><p>Conjugate the ${D.VERBS.length} most useful verbs in the present tense. Best streak: ${S.drills.verbs}</p></a>
       </div>`;
   };
 
@@ -868,7 +901,7 @@
         if (ok) S.xp += 2;
         touchStreak(); save(); updateChrome('drills');
         $('#noun').innerHTML = deHtml(cur);
-        $('#hint').innerHTML = (ok ? '<b class="ok-t">✓ ' + pick(PRAISE) + '</b>' : '<b class="bad-t">✗ It is ' + deHtml(cur) + '</b>') +
+        $('#hint').innerHTML = (ok ? '<b class="ok-t">' + icon('check') + ' ' + pick(PRAISE) + '</b>' : '<b class="bad-t">' + icon('x') + ' It is ' + deHtml(cur) + '</b>') +
           (cur.pl ? ' <span class="muted">· plural: die ' + esc(cur.pl) + '</span>' : '') + ruleNote(cur);
         autoSay(deText(cur));
         setTimeout(next, ok ? 1300 : 2800);
@@ -923,7 +956,7 @@
       bumpBest(o.key, streak);
       if (ok) S.xp += 2;
       touchStreak(); save(); updateChrome('drills');
-      $('#hint').innerHTML = (ok ? '<b class="ok-t">✓ ' + pick(PRAISE) + '</b> ' : '<b class="bad-t">✗ Not quite.</b> ') + cur.solution;
+      $('#hint').innerHTML = (ok ? '<b class="ok-t">' + icon('check') + ' ' + pick(PRAISE) + '</b> ' : '<b class="bad-t">' + icon('x') + ' Not quite.</b> ') + cur.solution;
       btn.textContent = 'Next';
       btn.focus();
       if (cur.sayAfter) autoSay(cur.sayAfter);
@@ -1016,13 +1049,13 @@
 
       <section>
         <div class="sec-h"><h2>Why it is built this way</h2></div>
-        <div class="method">${D.METHOD.map((m) => `<div class="card"><div class="emoji">${m[0]}</div><h3>${m[1]}</h3><p>${m[2]}</p></div>`).join('')}</div>
+        <div class="method">${D.METHOD.map((m) => `<div class="card"><div class="ico">${icon(m[0])}</div><h3>${m[1]}</h3><p>${m[2]}</p></div>`).join('')}</div>
         <p class="note" style="margin-top:12px">What this app cannot do: have a conversation with you or correct your accent. Pair it with real listening and real people — the resources below cover both.</p>
       </section>
 
       <section>
         <div class="sec-h"><h2>Best free resources to pair it with</h2></div>
-        <div class="res">${D.RESOURCES.map((r) => `<a href="${r[1]}" target="_blank" rel="noopener noreferrer"><b>${esc(r[0])}</b><span>${esc(r[2])}</span></a>`).join('')}</div>
+        <div class="res">${D.RESOURCES.map((r) => `<a href="${r[1]}" target="_blank" rel="noopener noreferrer"><div><b>${esc(r[0])}</b><span>${esc(r[2])}</span></div>${icon('external')}</a>`).join('')}</div>
       </section>
 
       <section>
@@ -1038,11 +1071,10 @@
       </section>
 
       <section>
-        <div class="sec-h"><h2>Sync and backup</h2></div>
+        <div class="sec-h"><h2>Account and data</h2></div>
         <div class="card settings">
           ${!Sync.on() ? `<p class="muted" style="margin:0">Sync needs the hosted version of this app. Here, progress stays in this browser — use export and import to move it.</p>`
-            : `<div class="line-item"><span><b>Sync is on</b><br><small id="syncStatus">${esc(Sync.text())}</small></span>
-                <button type="button" class="btn" id="syncNow">Sync now</button></div>
+            : `<div class="line-item"><span><b>Sync is automatic</b><br><small id="syncStatus">${esc(Sync.text())}</small></span></div>
               <div class="line-item"><span><b>Sign out</b><br><small>Clears progress from this browser. It stays on the server and returns when you sign in.</small></span>
                 <div class="row"><button type="button" class="btn" id="signOut">Sign out</button><button type="button" class="btn" id="signOutAll">All devices</button></div></div>
               <small id="signOutMsg" class="bad-t"></small>`}
@@ -1069,7 +1101,6 @@
     };
 
     /* --- sync and sign-out --- */
-    if ($('#syncNow')) $('#syncNow').onclick = () => Sync.pull();
     const wireSignOut = (btn, everywhere) => {
       if (!btn) return;
       let force = false;
@@ -1180,6 +1211,7 @@
     if (document.visibilityState === 'hidden') Sync.flush();   // leaving: push pending changes now
     else Sync.pullIfStale();                                    // back: pick up other devices' progress
   });
+  $$('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon, el.dataset.iconClass); });
   applyTheme();
   route();
   Sync.pull();

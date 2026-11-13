@@ -64,7 +64,9 @@ To publish later changes: `npx wrangler deploy`. If `migrations/` gained a file,
 - On load, and when you return to the tab, it fetches the server copy and merges it with the
   local one: for each word the more-practised copy wins, XP and records take the higher value.
   Practice done on two devices is combined, not overwritten.
-- Changes are pushed a couple of seconds after each answer, and when you leave the tab.
+- Changes are pushed a couple of seconds after each answer, at once when a round is finished,
+  and when you leave the tab. The end-of-round screen confirms the save; a "Not synced" mark
+  in the header appears only while something has not reached the server.
 - **Reset progress** and **Import** replace the data everywhere, on purpose.
 - Theme and speech settings stay per device.
 
@@ -104,6 +106,24 @@ Nouns are always shown with their article and a fixed colour (der blue, die pink
 
 Keyboard: `1`–`4` pick an option, `Enter` checks or continues. Umlauts can be typed as
 `ae`, `oe`, `ue`, `ss`.
+
+## Design
+
+The look is defined once, as tokens at the top of `public/css/style.css`: colours, type scale,
+spacing, radii, shadows and motion, each with a light and a dark value. Components use the
+tokens only, so a rebrand is a change to that block.
+
+- **Brand:** ink and gold. Ink carries text and primary actions; gold marks progress and the
+  current step.
+- **der / die / das** keep their own blue, pink and green everywhere and are used for nothing else.
+- **Type:** the platform's own UI font, so it feels native on each device.
+- **Icons:** inline line icons, no emoji and no icon font. Shapes are from Feather (MIT licence);
+  the flame is from Lucide (ISC licence). They live in the `ICONS` map in `public/js/app.js`.
+- Touch targets are at least 44px, focus is always visible, and motion is disabled when the
+  system asks for reduced motion.
+
+`public/login.css` repeats the handful of token values it needs, because the main stylesheet
+is not served before sign-in.
 
 ## Files
 

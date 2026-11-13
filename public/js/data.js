@@ -16,7 +16,7 @@
   const UNITS = [
     /* ------------------------------------------------------------------ 1 */
     {
-      id: 'u1', icon: '👋', title: 'Hallo!', sub: 'Greetings and first phrases',
+      id: 'u1', title: 'Hallo!', sub: 'Greetings and first phrases',
       goal: 'Greet people, introduce yourself and survive the first 30 seconds of a conversation.',
       tips: [
         { h: 'Two words for “you”', html:
@@ -61,7 +61,7 @@
 
     /* ------------------------------------------------------------------ 2 */
     {
-      id: 'u2', icon: '🗣️', title: 'Sounds', sub: 'Read any German word out loud',
+      id: 'u2', title: 'Sounds', sub: 'Read any German word out loud',
       goal: 'German spelling is consistent. Learn about a dozen rules and you can pronounce anything.',
       tips: [
         { h: 'Vowel pairs', html:
@@ -125,7 +125,7 @@
 
     /* ------------------------------------------------------------------ 3 */
     {
-      id: 'u3', icon: '🔢', title: 'Zahlen', sub: 'Numbers, prices and age',
+      id: 'u3', title: 'Zahlen', sub: 'Numbers, prices and age',
       goal: 'Count, understand prices and say how old you are.',
       tips: [
         { h: '13–19: unit + zehn', html:
@@ -156,7 +156,7 @@
 
     /* ------------------------------------------------------------------ 4 */
     {
-      id: 'u4', icon: '🎨', title: 'Der, die, das', sub: 'Nouns and their gender',
+      id: 'u4', title: 'Der, die, das', sub: 'Nouns and their gender',
       goal: 'Name things around you and stop fearing the three articles.',
       tips: [
         { h: 'Learn article + noun as one chunk', html:
@@ -204,7 +204,7 @@
 
     /* ------------------------------------------------------------------ 5 */
     {
-      id: 'u5', icon: '🙋', title: 'Ich bin, ich habe', sub: 'Pronouns, to be, to have',
+      id: 'u5', title: 'Ich bin, ich habe', sub: 'Pronouns, to be, to have',
       goal: 'Talk about yourself and others with the two most used verbs in German.',
       tips: [
         { h: 'sein (to be) and haben (to have)', html:
@@ -258,7 +258,7 @@
 
     /* ------------------------------------------------------------------ 6 */
     {
-      id: 'u6', icon: '⚙️', title: 'Verben', sub: 'Present tense in one pattern',
+      id: 'u6', title: 'Verben', sub: 'Present tense in one pattern',
       goal: 'Conjugate almost any verb and say what you do every day.',
       tips: [
         { h: 'Cut -en, add the ending', html:
@@ -311,7 +311,7 @@
 
     /* ------------------------------------------------------------------ 7 */
     {
-      id: 'u7', icon: '🧩', title: 'Satzbau', sub: 'Word order and questions',
+      id: 'u7', title: 'Satzbau', sub: 'Word order and questions',
       goal: 'Build correct sentences and ask anything with the one rule that matters most.',
       tips: [
         { h: 'The verb is always in position 2', html:
@@ -349,7 +349,7 @@
 
     /* ------------------------------------------------------------------ 8 */
     {
-      id: 'u8', icon: '☕', title: 'Essen & Trinken', sub: 'Ordering food · the accusative',
+      id: 'u8', title: 'Essen & Trinken', sub: 'Ordering food · the accusative',
       goal: 'Order in a café and meet your first case — it is smaller than its reputation.',
       tips: [
         { h: 'Accusative = the thing being verb-ed', html:
@@ -399,7 +399,7 @@
 
     /* ------------------------------------------------------------------ 9 */
     {
-      id: 'u9', icon: '🚫', title: 'Nicht & kein', sub: 'Saying no · describing things',
+      id: 'u9', title: 'Nicht & kein', sub: 'Saying no · describing things',
       goal: 'Negate anything and describe things with common adjectives.',
       tips: [
         { h: 'kein = “not a / no” (for nouns)', html:
@@ -438,7 +438,7 @@
 
     /* ----------------------------------------------------------------- 10 */
     {
-      id: 'u10', icon: '💪', title: 'Können, müssen, wollen', sub: 'Modal verbs',
+      id: 'u10', title: 'Können, müssen, wollen', sub: 'Modal verbs',
       goal: 'Say what you can, must, want and may do — this multiplies everything you already know.',
       tips: [
         { h: 'The verb sandwich', html:
@@ -495,7 +495,7 @@
 
     /* ----------------------------------------------------------------- 11 */
     {
-      id: 'u11', icon: '🚆', title: 'Unterwegs', sub: 'Getting around · the dative',
+      id: 'u11', title: 'Unterwegs', sub: 'Getting around · the dative',
       goal: 'Ask the way, use transport and handle the prepositions you need every day.',
       tips: [
         { h: 'These seven always take the dative', html:
@@ -548,7 +548,7 @@
 
     /* ----------------------------------------------------------------- 12 */
     {
-      id: 'u12', icon: '⏰', title: 'Zeit & Alltag', sub: 'Time, routine, separable verbs',
+      id: 'u12', title: 'Zeit & Alltag', sub: 'Time, routine, separable verbs',
       goal: 'Tell the time, make plans and describe your day.',
       tips: [
         { h: 'Telling the time', html:
@@ -601,7 +601,7 @@
 
     /* ----------------------------------------------------------------- 13 */
     {
-      id: 'u13', icon: '⏪', title: 'Perfekt', sub: 'Talking about the past',
+      id: 'u13', title: 'Perfekt', sub: 'Talking about the past',
       goal: 'Say what you did yesterday — with the one past tense Germans actually use when speaking.',
       tips: [
         { h: 'Another verb sandwich', html:
@@ -771,12 +771,12 @@
   ];
 
   const METHOD = [
-    ['🔁', 'Spaced repetition', 'Each word comes back just before you would forget it: after 1 day, then 3, 7, 14, 30, 60. Spacing practice is one of the most replicated findings in memory research.'],
-    ['🧠', 'Recall, don’t re-read', 'You choose, type and build answers instead of staring at lists. Pulling a word out of memory is what makes it stick. Exercises get harder as a word gets stronger.'],
-    ['🎯', 'Most useful words first', 'About 250 core beginner words and the sentence patterns that carry everyday conversation. Nouns always come with their article and colour.'],
-    ['👂', 'Sound from day one', 'Everything German is tappable and spoken aloud. Repeat it out loud every time — your mouth needs the practice as much as your memory.'],
-    ['🧩', 'One grammar idea per unit', 'A short explicit rule, then immediate use. Research on language teaching favours combining clear explanations with lots of input over either alone.'],
-    ['⏱️', 'Little and often', 'Fifteen focused minutes a day beats a two-hour weekend session. The streak counter is there to protect the habit.'],
+    ['repeat', 'Spaced repetition', 'Each word comes back just before you would forget it: after 1 day, then 3, 7, 14, 30, 60. Spacing practice is one of the most replicated findings in memory research.'],
+    ['edit', 'Recall, don’t re-read', 'You choose, type and build answers instead of staring at lists. Pulling a word out of memory is what makes it stick. Exercises get harder as a word gets stronger.'],
+    ['target', 'Most useful words first', 'About 250 core beginner words and the sentence patterns that carry everyday conversation. Nouns always come with their article and colour.'],
+    ['volume', 'Sound from day one', 'Everything German is tappable and spoken aloud. Repeat it out loud every time — your mouth needs the practice as much as your memory.'],
+    ['layers', 'One grammar idea per unit', 'A short explicit rule, then immediate use. Research on language teaching favours combining clear explanations with lots of input over either alone.'],
+    ['clock', 'Little and often', 'Fifteen focused minutes a day beats a two-hour weekend session. The streak counter is there to protect the habit.'],
   ];
 
   const RESOURCES = [
