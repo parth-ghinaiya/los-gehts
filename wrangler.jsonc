@@ -2,15 +2,23 @@
 	"name": "de",
 	"main": "worker/index.js",
 	"compatibility_date": "2026-11-01",
-	// Only this folder is uploaded as the website.
 	"assets": {
-		"directory": "./public"
+		// Only this folder is uploaded as the website.
+		"directory": "./public",
+		"binding": "ASSETS",
+		// The Worker runs before every file is served, so it can require sign-in.
+		"run_worker_first": true
 	},
 	"d1_databases": [
 		{
 			"binding": "DB",
 			"database_name": "los-gehts",
-			"database_id": "054afda4-6126-4f6a-a5fc-e0f95d06d32f"
+			"database_id": "054afda4-6126-4f6a-a5fc-e0f95d06d32f",
+			"migrations_dir": "migrations"
 		}
-	]
+	],
+	// Keeps Worker logs (errors, requests) viewable in the Cloudflare dashboard.
+	"observability": {
+		"enabled": true
+	}
 }

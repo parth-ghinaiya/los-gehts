@@ -1,71 +1,100 @@
-/* Progress API for a single user.
-   Static files in ./public are served by Cloudflare before this code runs;
-   only requests that match no file (i.e. /api/*) arrive here. */
+/* Entry point. Every request passes through here before any file is served
+   (run_worker_first in wrangler.jsonc), so nothing but the sign-in page is
+   reachable without a session. */
 
-const ROW_ID = 'me';
-const MAX_BYTES = 512 * 1024;
+import { json, redirect, methodNotAllowed, withSecurityHeaders, sameOrigin, readJsonObject } from './http.js';
+import {
+  passphraseMatches, createSession, readSession, endSession, endAllSessions, clearedCookie,
+  clientKey, retryAfter, recordFailure, tidyAfterSignIn,
+} from './auth.js';
+import { getProgress, putProgress } from './progress.js';
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
-  status,
-  headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-});
+/* The only paths served to a browser that is not signed in. */
+const PUBLIC_PATHS = new Set(['/login', '/login.css', '/login.js']);
+const LOGIN_BODY_BYTES = 2048;
 
-/* Hash both sides to a fixed length, then compare in constant time,
-   so neither the secret's content nor its length leaks through timing. */
-async function sameSecret(provided, expected) {
-  const enc = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(provided)),
-    crypto.subtle.digest('SHA-256', enc.encode(expected)),
-  ]);
-  return crypto.subtle.timingSafeEqual(a, b);
+async function signIn(request, env, now) {
+  if (!sameOrigin(request)) return json({ error: 'forbidden' }, 403);
+
+  const client = await clientKey(request, env);
+  const wait = await retryAfter(env, client, now);
+  if (wait) return json({ error: 'too_many_attempts', retryAfter: wait }, 429, { 'Retry-After': String(wait) });
+
+  const body = await readJsonObject(request, LOGIN_BODY_BYTES);
+  const passphrase = body.value && typeof body.value.passphrase === 'string' ? body.value.passphrase : '';
+  if (!passphrase || !(await passphraseMatches(passphrase, env))) {
+    await recordFailure(env, client, now);
+    return json({ error: 'unauthorized' }, 401);
+  }
+
+  await tidyAfterSignIn(env, client, now);
+  return json({ ok: true }, 200, { 'Set-Cookie': await createSession(env, now) });
 }
 
-function bearer(request) {
-  const header = request.headers.get('Authorization') || '';
-  if (!header.startsWith('Bearer ')) return '';
-  try {
-    return decodeURIComponent(header.slice(7));   // client percent-encodes so any passphrase is header-safe
-  } catch (e) {
-    return '';
+/* Body { "everywhere": true } ends the session on every device. */
+async function signOut(request, env, now) {
+  if (!sameOrigin(request)) return json({ error: 'forbidden' }, 403);
+  const session = await readSession(request, env, now);
+  if (session) {
+    const body = await readJsonObject(request, LOGIN_BODY_BYTES);
+    if (body.value && body.value.everywhere === true) await endAllSessions(env);
+    else await endSession(env, session.id);
   }
+  return json({ ok: true }, 200, { 'Set-Cookie': clearedCookie() });
+}
+
+async function api(request, env, path, session, now) {
+  if (!session) return json({ error: 'unauthorized' }, 401);
+  if (path !== '/api/progress') return json({ error: 'not_found' }, 404);
+
+  if (request.method === 'GET') return getProgress(env);
+  if (request.method === 'PUT') {
+    if (!sameOrigin(request)) return json({ error: 'forbidden' }, 403);
+    return putProgress(request, env, now);
+  }
+  return methodNotAllowed('GET, PUT');
+}
+
+async function page(request, env, path, session) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return methodNotAllowed('GET, HEAD');
+
+  if (PUBLIC_PATHS.has(path)) {
+    if (path === '/login' && session) return redirect('/');
+  } else if (!session) {
+    return redirect('/login');
+  }
+
+  const asset = await env.ASSETS.fetch(request);
+  const out = new Response(asset.body, asset);
+  /* Never stored by shared caches, and the browser re-checks with us before reusing a copy. */
+  out.headers.set('Cache-Control', 'private, no-cache');
+  return out;
+}
+
+async function handle(request, env) {
+  if (!env.SYNC_TOKEN) return json({ error: 'server_not_configured' }, 500);
+
+  const path = new URL(request.url).pathname;
+  const now = Date.now();
+
+  if (path === '/api/login') return request.method === 'POST' ? signIn(request, env, now) : methodNotAllowed('POST');
+  if (path === '/api/logout') return request.method === 'POST' ? signOut(request, env, now) : methodNotAllowed('POST');
+
+  const session = await readSession(request, env, now);
+  const response = path.startsWith('/api/')
+    ? await api(request, env, path, session, now)
+    : await page(request, env, path, session);
+  if (session && session.cookie) response.headers.append('Set-Cookie', session.cookie);   // sliding expiry
+  return response;
 }
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname !== '/api/progress') return json({ error: 'not_found' }, 404);
-
-    if (!env.SYNC_TOKEN) return json({ error: 'server_not_configured' }, 500);
-    const token = bearer(request);
-    if (!token || !(await sameSecret(token, env.SYNC_TOKEN))) return json({ error: 'unauthorized' }, 401);
-
-    if (request.method === 'GET') {
-      const row = await env.DB.prepare('SELECT data, updated_at FROM progress WHERE id = ?1').bind(ROW_ID).first();
-      if (!row) return json({ data: null, updatedAt: 0 });
-      return json({ data: JSON.parse(row.data), updatedAt: row.updated_at });
+    try {
+      return withSecurityHeaders(await handle(request, env));
+    } catch (error) {
+      console.error(error);
+      return withSecurityHeaders(json({ error: 'internal_error' }, 500));
     }
-
-    if (request.method === 'PUT') {
-      const text = await request.text();
-      if (text.length > MAX_BYTES) return json({ error: 'too_large' }, 413);
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        return json({ error: 'invalid_json' }, 400);
-      }
-      if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.cards !== 'object' || data.cards === null) {
-        return json({ error: 'invalid_shape' }, 400);
-      }
-      const now = Date.now();
-      await env.DB.prepare(
-        'INSERT INTO progress (id, data, updated_at) VALUES (?1, ?2, ?3) ' +
-        'ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
-      ).bind(ROW_ID, JSON.stringify(data), now).run();
-      return json({ ok: true, updatedAt: now });
-    }
-
-    return json({ error: 'method_not_allowed' }, 405);
   },
 };

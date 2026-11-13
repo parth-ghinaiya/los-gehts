@@ -151,27 +151,27 @@
     return out;
   };
 
+  /* Sync needs no setup: the server only serves this app to a signed-in browser, and the
+     session travels in an HttpOnly cookie that this code can neither read nor leak. */
   const Sync = (() => {
-    const TOKEN_KEY = 'los-gehts-sync';
-    const available = /^https?:$/.test(location.protocol);   // not when opened as a local file
-    let token = '';
-    try { token = localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { /* private mode */ }
-    let state = token ? 'idle' : 'off';
+    let on = /^https?:$/.test(location.protocol);   // off when opened as a local file
+    let state = on ? 'idle' : 'off';
     let at = 0;
     let timer = null;
     let busy = false;
     let dirty = false;
     let lastPull = 0;
 
+    try { localStorage.removeItem('los-gehts-sync'); } catch (e) { /* passphrase kept by an earlier version */ }
+
     const text = () => {
       const time = at ? new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
       return {
         off: '',
-        idle: 'Connected.',
+        idle: 'Signed in.',
         busy: 'Syncing …',
         ok: 'Synced at ' + time + '.',
         offline: 'Could not reach the server. Progress is safe on this device and will sync later.',
-        auth: 'Passphrase rejected.',
       }[state];
     };
     const setState = (s) => {
@@ -182,16 +182,29 @@
     };
 
     const call = async (method, body) => {
-      const init = { method, cache: 'no-store', headers: { Authorization: 'Bearer ' + encodeURIComponent(token) } };
+      const init = { method, cache: 'no-store' };
       if (body) {
         init.body = body;
-        init.headers['Content-Type'] = 'application/json';
+        init.headers = { 'Content-Type': 'application/json' };
         init.keepalive = body.length < 60000;   // lets a push finish while the tab is closing
       }
       const r = await fetch('/api/progress', init);
-      if (r.status === 401) { const e = new Error('unauthorized'); e.auth = true; throw e; }
+      if (r.status === 401) { const e = new Error('signed out'); e.signedOut = true; throw e; }
+      if (r.status === 404) { const e = new Error('no api'); e.noApi = true; throw e; }
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
+    };
+
+    const failed = (e) => {
+      if (e && e.signedOut) {
+        location.replace('/login');   // session ended; local progress stays and merges after sign-in
+      } else if (e && e.noApi) {
+        on = false;                   // a plain file server: nothing to sync with
+        setState('off');
+        refreshAfterSync();
+      } else {
+        setState('offline');
+      }
     };
 
     const push = async () => {
@@ -206,7 +219,7 @@
     };
 
     const pull = async () => {
-      if (!token || !available || busy) return;
+      if (!on || busy) return;
       busy = true;
       setState('busy');
       try {
@@ -223,7 +236,7 @@
           await push();   // first device: seed the server
         }
       } catch (e) {
-        setState(e && e.auth ? 'auth' : 'offline');
+        failed(e);
       } finally {
         busy = false;
       }
@@ -232,18 +245,17 @@
     const flush = async () => {
       clearTimeout(timer);
       timer = null;
-      if (!dirty || !token || !available) return;
+      if (!dirty || !on) return;
       if (busy) { timer = setTimeout(flush, 1500); return; }
       busy = true;
-      try { await push(); } catch (e) { setState(e && e.auth ? 'auth' : 'offline'); } finally { busy = false; }
+      try { await push(); } catch (e) { failed(e); } finally { busy = false; }
     };
 
     return {
-      available,
-      connected: () => !!token,
+      on: () => on,
       text,
       queue() {
-        if (!token || !available) return;
+        if (!on) return;
         dirty = true;
         clearTimeout(timer);
         timer = setTimeout(flush, 2500);
@@ -251,19 +263,35 @@
       flush,
       pull,
       pullIfStale() { if (Date.now() - lastPull > 60000) pull(); },
-      /* Keeps the passphrase only if the server accepted it. */
-      async connect(passphrase) {
-        token = passphrase;
-        await pull();
-        if (state !== 'ok') { token = ''; return false; }
-        try { localStorage.setItem(TOKEN_KEY, token); } catch (e) { /* private mode */ }
-        return true;
-      },
-      disconnect() {
-        token = '';
-        dirty = false;
-        try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* private mode */ }
-        setState('off');
+      /* Ends the session (on every device if asked) and clears this browser's copy of the
+         progress. On success the page navigates away. Otherwise returns why it stopped:
+         'unsynced' — recent progress is not on the server yet (pass force to sign out anyway);
+         'offline'  — the server could not be reached, so the session is still active. */
+      async signOut(everywhere, force) {
+        clearTimeout(timer);
+        timer = null;
+        if (dirty && !busy) {
+          busy = true;
+          try { await push(); } catch (e) { /* reported below */ } finally { busy = false; }
+        }
+        if ((dirty || busy) && !force) return 'unsynced';
+        try {
+          const r = await fetch('/api/logout', {
+            method: 'POST',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ everywhere: !!everywhere }),
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+        } catch (e) {
+          return 'offline';
+        }
+        const settings = S.settings;
+        S = defaults();
+        S.settings = settings;   // theme and speech choices are not private
+        persist();
+        location.replace('/login');
+        return '';
       },
     };
   })();
@@ -1005,19 +1033,19 @@
           <label class="line-item"><span><b>Slow speech</b><br><small>Speak German at 70% speed</small></span><input type="checkbox" id="slow" ${S.settings.slow ? 'checked' : ''}></label>
           <label class="line-item"><span><b>Auto-play audio</b><br><small>Speak each answer automatically</small></span><input type="checkbox" id="auto" ${S.settings.auto ? 'checked' : ''}></label>
           <div class="line-item"><span><b>Voice</b><br><small id="voiceInfo"></small></span><button type="button" class="btn" data-say="Hallo! Schön, dass du da bist.">Test voice</button></div>
-          <div class="line-item"><span><b>Reset progress</b><br><small>Erases streak, XP and all word history${Sync.connected() ? ' — here and on every synced device' : ' on this device'}</small></span><button type="button" class="btn danger" id="reset">Reset</button></div>
+          <div class="line-item"><span><b>Reset progress</b><br><small>Erases streak, XP and all word history${Sync.on() ? ' — here and on every synced device' : ' on this device'}</small></span><button type="button" class="btn danger" id="reset">Reset</button></div>
         </div>
       </section>
 
       <section>
         <div class="sec-h"><h2>Sync and backup</h2></div>
         <div class="card settings">
-          ${!Sync.available ? `<p class="muted" style="margin:0">Sync needs the hosted version of this app. Opened as a local file, progress stays in this browser — use export and import to move it.</p>`
-            : Sync.connected() ? `<div class="line-item"><span><b>Sync is on</b><br><small id="syncStatus">${esc(Sync.text())}</small></span>
-                <div class="row"><button type="button" class="btn" id="syncNow">Sync now</button><button type="button" class="btn" id="syncOff">Disconnect</button></div></div>`
-              : `<div class="line-item"><span><b>Sync across devices</b><br><small>Enter the passphrase you chose when deploying. It is kept in this browser’s storage.</small></span>
-                <form class="row" id="syncForm"><input type="password" id="syncPass" autocomplete="current-password" placeholder="Passphrase" aria-label="Sync passphrase"><button type="submit" class="btn primary">Connect</button></form></div>
-                <small id="syncStatus" class="bad-t">${esc(Sync.text())}</small>`}
+          ${!Sync.on() ? `<p class="muted" style="margin:0">Sync needs the hosted version of this app. Here, progress stays in this browser — use export and import to move it.</p>`
+            : `<div class="line-item"><span><b>Sync is on</b><br><small id="syncStatus">${esc(Sync.text())}</small></span>
+                <button type="button" class="btn" id="syncNow">Sync now</button></div>
+              <div class="line-item"><span><b>Sign out</b><br><small>Clears progress from this browser. It stays on the server and returns when you sign in.</small></span>
+                <div class="row"><button type="button" class="btn" id="signOut">Sign out</button><button type="button" class="btn" id="signOutAll">All devices</button></div></div>
+              <small id="signOutMsg" class="bad-t"></small>`}
           <div class="line-item"><span><b>Backup file</b><br><small>Download your progress, or restore it from a file</small></span>
             <div class="row"><button type="button" class="btn" id="export">Export</button><button type="button" class="btn" id="import">Import</button>
             <input type="file" id="importFile" accept="application/json,.json" hidden></div></div>
@@ -1040,19 +1068,27 @@
       S = defaults(); S.settings = settings; S.epoch = Date.now(); save(); route();
     };
 
-    /* --- sync --- */
-    if ($('#syncForm')) {
-      $('#syncForm').onsubmit = async (e) => {
-        e.preventDefault();
-        const pass = $('#syncPass').value;
-        if (!pass) return;
-        const tok = viewTok;
-        await Sync.connect(pass);
-        if (tok === viewTok) route(true);   // redraw with the result (unless sync already did)
-      };
-    }
+    /* --- sync and sign-out --- */
     if ($('#syncNow')) $('#syncNow').onclick = () => Sync.pull();
-    if ($('#syncOff')) $('#syncOff').onclick = () => { Sync.disconnect(); route(true); };
+    const wireSignOut = (btn, everywhere) => {
+      if (!btn) return;
+      let force = false;
+      btn.onclick = async () => {
+        btn.disabled = true;
+        const stopped = await Sync.signOut(everywhere, force);
+        btn.disabled = false;
+        if (stopped === 'unsynced') {
+          force = true;
+          btn.textContent = 'Sign out anyway';
+          btn.classList.add('danger');
+          $('#signOutMsg').textContent = 'Recent progress has not reached the server yet and would be lost.';
+        } else if (stopped === 'offline') {
+          $('#signOutMsg').textContent = 'Could not reach the server. You are still signed in.';
+        }
+      };
+    };
+    wireSignOut($('#signOut'), false);
+    wireSignOut($('#signOutAll'), true);
 
     /* --- backup file --- */
     $('#export').onclick = () => {

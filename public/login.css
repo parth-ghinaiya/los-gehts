@@ -1,0 +1,53 @@
+/* Sign-in page. Self-contained: the app's own stylesheet is not served before sign-in. */
+:root {
+  --bg: #faf6ef; --surface: #ffffff; --ink: #1d1b18; --muted: #6f685d; --line: #e7dece;
+  --gold: #f2b705; --gold-ink: #1d1b18; --red: #d7263d; --bad: #c22f3a;
+  --shadow: 0 1px 2px rgba(40, 25, 0, .05), 0 8px 24px rgba(40, 25, 0, .06);
+  --font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151412; --surface: #1f1d1a; --ink: #f3efe8; --muted: #a8a196; --line: #37332d; --bad: #ff7b7b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--ink); font: 16px/1.55 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+.flag { height: 5px; background: linear-gradient(90deg, #111 0 33.3%, var(--red) 33.3% 66.6%, var(--gold) 66.6%); }
+
+main { flex: 1; display: grid; place-items: center; padding: 24px 16px; }
+.card {
+  width: 100%; max-width: 380px; padding: 28px 24px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+}
+h1 { margin: 0 0 4px; font-size: 1.8rem; line-height: 1.2; letter-spacing: -.01em; }
+.lede { margin: 0 0 22px; color: var(--muted); }
+
+label { display: block; margin-bottom: 6px; font-weight: 600; font-size: .92rem; }
+input[type="password"] {
+  width: 100%; padding: 12px 14px; font: inherit; color: inherit;
+  background: var(--surface); border: 2px solid var(--line); border-radius: 12px;
+}
+input[type="password"]:focus { outline: none; border-color: var(--gold); }
+
+.message { min-height: 1.55em; margin: 10px 0 12px; color: var(--bad); font-size: .92rem; }
+
+button {
+  width: 100%; padding: 12px 20px; font: inherit; font-weight: 700; cursor: pointer;
+  color: var(--gold-ink); background: var(--gold); border: 1px solid var(--gold); border-radius: 12px;
+  box-shadow: 0 3px 0 #c99500;
+}
+button:active { box-shadow: 0 1px 0 #c99500; transform: translateY(2px); }
+button:disabled { opacity: .6; cursor: default; }
+button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+.noscript { padding: 0 24px 24px; text-align: center; color: var(--muted); }
