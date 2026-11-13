@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Los geht's — Learn German</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 3 3'%3E%3Crect width='3' height='1' fill='%23111'/%3E%3Crect y='1' width='3' height='1' fill='%23d7263d'/%3E%3Crect y='2' width='3' height='1' fill='%23f2b705'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="flag" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="#/"><b>Los geht’s!</b><span>German from zero</span></a>
+  <nav id="nav" aria-label="Main">
+    <a href="#/" data-nav="learn"><i aria-hidden="true">🗺️</i><span>Learn</span></a>
+    <a href="#/review" data-nav="review"><i aria-hidden="true">🔁</i><span>Review</span><em id="dueBadge" hidden></em></a>
+    <a href="#/drills" data-nav="drills"><i aria-hidden="true">⚡</i><span>Drills</span></a>
+    <a href="#/grammar" data-nav="grammar"><i aria-hidden="true">📐</i><span>Grammar</span></a>
+    <a href="#/guide" data-nav="guide"><i aria-hidden="true">💡</i><span>Guide</span></a>
+  </nav>
+  <div class="chip" id="streakChip" title="Day streak">🔥 <b>0</b></div>
+</header>
+
+<main id="app" tabindex="-1"></main>
+
+<noscript><p style="padding:24px">This app needs JavaScript. Enable it and reload.</p></noscript>
+
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

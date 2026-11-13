@@ -1,0 +1,13 @@
+{
+  "name": "los-gehts",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-01",
+
+  // Only this folder is uploaded as the website.
+  "assets": {
+    "directory": "./public"
+  }
+
+  // The D1 binding ("DB") is added here by:
+  //   npx wrangler d1 create los-gehts --binding DB --update-config
+}

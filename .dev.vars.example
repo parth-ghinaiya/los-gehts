@@ -1,0 +1,3 @@
+# Local development only. Copy to .dev.vars and set any value.
+# The deployed secret is set separately with: npx wrangler secret put SYNC_TOKEN
+SYNC_TOKEN="change-me-local-only"
