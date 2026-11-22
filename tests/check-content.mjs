@@ -134,6 +134,26 @@ for (const sh of D.SHEETS) {
   if (hasName(sh.html || '')) err('sheet "' + sh.title + '"', 'uses a personal name; only Alice and Bob are allowed');
 }
 
+/* month plan: every unit of its level exactly once, in course order, with a checkpoint per week */
+{
+  const P = D.PLAN;
+  const planUnits = (P && P.weeks || []).flatMap((w) => w.units || []);
+  const levelUnits = D.UNITS.filter((u) => u.level === (P && P.level)).map((u) => u.id);
+  if (!P || !Array.isArray(P.weeks) || !P.weeks.length) err('plan', 'needs weeks');
+  else {
+    if (planUnits.join() !== levelUnits.join()) err('plan', 'must list every ' + P.level + ' unit once, in course order');
+    const checkIds = P.weeks.map((w) => w.check && w.check.id);
+    if (new Set(checkIds).size !== P.weeks.length || !checkIds.every((id) => /^[a-z0-9-]{1,32}$/.test(id || ''))) err('plan', 'each week needs a unique checkpoint id (a-z, 0-9, -)');
+    if (2 * planUnits.length + P.weeks.length !== 30) err('plan', 'two days per unit plus one checkpoint per week must make 30 days');
+    P.weeks.forEach((w, i) => {
+      if (!w.check || !str(w.check.title) || !str(w.check.speak)) err('plan week ' + (i + 1), 'checkpoint needs title and speaking task');
+      else if (hasName(w.check.speak)) err('plan week ' + (i + 1), 'uses a personal name; only Alice and Bob are allowed');
+    });
+    Object.keys(P.drills || {}).forEach((id) => { if (!planUnits.includes(id)) err('plan', 'drill unlock unit ' + id + ' is not in the plan'); });
+    if (!(P.pass > 0 && P.pass <= 100)) err('plan', 'pass mark must be 1-100');
+  }
+}
+
 const count = (level, f) => D.UNITS.filter((u) => u.level === level).reduce((n, u) => n + f(u), 0);
 for (const l of D.LEVELS) {
   const units = D.UNITS.filter((u) => u.level === l.id).length;

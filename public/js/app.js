@@ -42,12 +42,19 @@
      State (localStorage)
      ==================================================================== */
   const KEY = 'los-gehts-v1';
+  const PACES = [30, 45, 60];   // plan lengths in days
+  /* id: when this plan was created (a newer plan replaces an older one on sync).
+     start: local day number of day 1. setAt: last change of start or pace.
+     ticks: per step, what was done by hand or counted (drill answers, speaking, extra round).
+     done: per step, the day it was completed. checks: best checkpoint score in percent. */
+  const emptyPlan = () => ({ id: 0, start: 0, pace: 30, setAt: 0, ticks: {}, done: {}, checks: {} });
   const defaults = () => ({
     cards: {},                                   // id -> { box, due, seen, ok }
     xp: 0,
     sessions: 0,
     streak: { last: 0, count: 0, best: 0 },
     drills: { gender: 0, numbers: 0, verbs: 0 }, // best streaks
+    plan: emptyPlan(),                           // the A1 month plan; start 0 = not running
     settings: { theme: 'auto', slow: false, auto: true, level: '' },   // per device, never overwritten by sync
     updatedAt: 0,                                // ms, last local change
     epoch: 0,                                    // ms of the last reset/import; a higher epoch replaces older data
@@ -57,6 +64,26 @@
   const INTERVALS = [0, 1, 3, 7, 14, 30, 60];
 
   const num = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+  const int = (v) => Math.max(0, Math.trunc(num(v)));
+
+  const hydratePlan = (raw) => {
+    const p = emptyPlan();
+    if (!raw || typeof raw !== 'object') return p;
+    p.id = int(raw.id);
+    p.start = int(raw.start);
+    p.pace = PACES.includes(num(raw.pace)) ? num(raw.pace) : 30;
+    p.setAt = int(raw.setAt);
+    const each = (obj, f) => {
+      if (!obj || typeof obj !== 'object') return;
+      Object.keys(obj).forEach((k) => { if (/^[a-z0-9-]{1,32}$/.test(k)) f(k, obj[k]); });
+    };
+    each(raw.ticks, (k, t) => {
+      if (t && typeof t === 'object') p.ticks[k] = { drill: int(t.drill), speak: t.speak ? 1 : 0, extra: t.extra ? 1 : 0 };
+    });
+    each(raw.done, (k, v) => { if (int(v) > 0) p.done[k] = int(v); });
+    each(raw.checks, (k, v) => { p.checks[k] = Math.min(int(v), 100); });
+    return p;
+  };
 
   /* Rebuild a state object from untrusted JSON (storage, import file, server):
      every value is coerced to the expected type, anything else is dropped. */
@@ -81,6 +108,7 @@
     d.streak = { last: num(st0.last), count: num(st0.count), best: num(st0.best) };
     const dr = raw.drills || {};
     d.drills = { gender: num(dr.gender), numbers: num(dr.numbers), verbs: num(dr.verbs) };
+    d.plan = hydratePlan(raw.plan);
     const se = raw.settings || {};
     d.settings = {
       theme: ['auto', 'light', 'dark'].includes(se.theme) ? se.theme : 'auto',
@@ -124,7 +152,12 @@
     const today = dayNum();
     const c = S.cards[id] || (S.cards[id] = { box: 0, due: today, seen: 0, ok: 0 });
     c.seen++;
-    if (ok) { c.ok++; c.box = Math.min(c.box + 1, INTERVALS.length - 1); } else { c.box = 0; }
+    if (!ok) { c.box = 0; c.due = today; return; }
+    c.ok++;
+    // Only a word that was due moves up a box, so a box counts separate days of recall:
+    // practising again on the same day keeps the word where it is.
+    if (c.due > today) return;
+    c.box = Math.min(c.box + 1, INTERVALS.length - 1);
     c.due = today + INTERVALS[c.box];
   };
 
@@ -135,7 +168,9 @@
     const cs = cardsOf(u);
     const seen = cs.filter((c) => st(c).seen > 0).length;
     const strong = cs.filter((c) => st(c).box >= 3).length;
-    return { n: cs.length, seen, strong, pct: Math.round((seen / cs.length) * 100), done: seen === cs.length };
+    const known = cs.filter((c) => st(c).box >= 2).length;
+    // met: every word practised once. done: every word right on two different days.
+    return { n: cs.length, seen, strong, known, pct: Math.round((seen / cs.length) * 100), met: seen === cs.length, done: known === cs.length };
   };
 
   const touchStreak = () => {
@@ -171,11 +206,168 @@
   const streakNow = () => (S.streak.last >= dayNum() - 1 ? S.streak.count : 0);
 
   /* ====================================================================
+     A1 month plan: one step a day. A step is half a unit ('learn'), a weekly
+     checkpoint ('check') or, on slower paces, a consolidation day ('rest').
+     Tasks tick themselves off from what the app already tracks; speaking is
+     ticked by hand. Ticks always go to the first unfinished step.
+     ==================================================================== */
+  const PLAN = D.PLAN;
+  const PLAN_UNITS = PLAN.weeks.flatMap((w) => w.units);
+  const DRILL_GOAL = 10;
+  const DRILL_NAME = { gender: 'der · die · das', numbers: 'Numbers', verbs: 'Verb forms' };
+  const PACE_MIN = { 30: 30, 45: 20, 60: 15 };   // rough minutes per day
+
+  const halfOf = (list, h) => { const mid = Math.ceil(list.length / 2); return h === 'a' ? list.slice(0, mid) : list.slice(mid); };
+  const halfCards = (u, h) => halfOf(cardsOf(u), h);
+  const halfRange = (u, h) => { const n = cardsOf(u).length; const mid = Math.ceil(n / 2); return h === 'a' ? '1–' + mid : (mid + 1) + '–' + n; };
+
+  const BASE_STEPS = [];
+  PLAN.weeks.forEach((w, wi) => {
+    w.units.forEach((id) => ['a', 'b'].forEach((h) => BASE_STEPS.push({ id: id + h, kind: 'learn', unit: unitById(id), half: h, week: wi })));
+    BASE_STEPS.push({ id: w.check.id, kind: 'check', check: w.check, week: wi, final: wi === PLAN.weeks.length - 1 });
+  });
+
+  /* Slower paces spread the extra days evenly over the gaps between steps, never before day 1. */
+  const stepCache = {};
+  const planSteps = (pace) => {
+    if (stepCache[pace]) return stepCache[pace];
+    const extra = pace - BASE_STEPS.length;
+    const gaps = BASE_STEPS.length - 1;
+    const out = [BASE_STEPS[0]];
+    let lastLearn = BASE_STEPS[0];
+    for (let j = 0; j < gaps; j++) {
+      if (BASE_STEPS[j].kind === 'learn') lastLearn = BASE_STEPS[j];
+      const nxt = BASE_STEPS[j + 1];
+      const n = Math.floor(((j + 1) * extra) / gaps) - Math.floor((j * extra) / gaps);
+      for (let k = 0; k < n; k++) out.push({ id: 'r-' + nxt.id + (k ? '-' + (k + 1) : ''), kind: 'rest', week: nxt.week, after: lastLearn, before: nxt });
+      out.push(nxt);
+    }
+    return (stepCache[pace] = out);
+  };
+
+  const planOn = () => S.plan.start > 0;
+  /* A consolidation day is passed once the day after it is done (e.g. after switching to a slower pace). */
+  const isDone = (s) => !!S.plan.done[s.id] || (s.kind === 'rest' && !!S.plan.done[s.before.id]);
+  const curStep = () => planSteps(S.plan.pace).find((s) => !isDone(s)) || null;
+  const checkStep = (id) => BASE_STEPS.find((s) => s.kind === 'check' && s.id === id);
+
+  /* The unit's own drill on its days, otherwise a rotation over the drills unlocked so far. */
+  const drillFor = (learnStep, salt) => {
+    const own = PLAN.drills[learnStep.unit.id];
+    if (own && salt === 0) return own;
+    const pos = PLAN_UNITS.indexOf(learnStep.unit.id);
+    const open = Object.keys(PLAN.drills).filter((id) => PLAN_UNITS.indexOf(id) <= pos).map((id) => PLAN.drills[id]);
+    return open.length ? open[(pos * 2 + (learnStep.half === 'b' ? 1 : 0) + salt) % open.length] : '';
+  };
+
+  const stepTitle = (s) => (s.kind === 'learn' ? s.unit.title + (s.half === 'a' ? ', part 1' : ', part 2')
+    : s.kind === 'check' ? s.check.title : 'Festigen · consolidate');
+
+  const stepTasks = (s) => {
+    const t = S.plan.ticks[s.id] || {};
+    const due = dueCards().length;
+    const out = [{ key: 'review', icon: 'repeat', label: 'Review due words', sub: due ? due + ' due. Do these first.' : 'Nothing due right now.', done: due === 0, href: '#/review' }];
+    const drill = (name) => ({ key: 'drill', icon: 'zap', label: 'Drill: ' + DRILL_NAME[name], sub: Math.min(t.drill || 0, DRILL_GOAL) + ' of ' + DRILL_GOAL + ' answers. Any drill counts.', done: (t.drill || 0) >= DRILL_GOAL, href: '#/drills/' + name });
+    if (s.kind === 'learn') {
+      const cs = halfCards(s.unit, s.half);
+      const seen = cs.filter((c) => st(c).seen > 0).length;
+      out.push({ key: 'learn', icon: 'book', label: s.unit.title + ': words ' + halfRange(s.unit, s.half),
+        sub: (s.half === 'a' ? 'Read the key ideas, then practise. ' : 'The second half and its sentences. ') + seen + ' of ' + cs.length + ' practised.',
+        done: seen === cs.length, href: '#/unit/' + s.unit.id + '/' + s.half });
+      const name = drillFor(s, 0);
+      if (name) out.push(drill(name));
+      out.push({ key: 'speak', icon: 'volume', label: 'Say it out loud', manual: true, done: !!t.speak,
+        sub: s.half === 'a' ? 'Tap each new word, listen, and repeat it.' : 'Say each sentence of this part after the voice, twice.' });
+    } else if (s.kind === 'check') {
+      const best = S.plan.checks[s.id] || 0;
+      out.push({ key: 'quiz', icon: 'award', label: s.check.title + ': quiz', sub: (best ? 'Best so far ' + best + '%. ' : '') + 'Pass mark ' + PLAN.pass + '%.', done: best >= PLAN.pass, href: '#/check/' + s.id });
+      out.push({ key: 'speak', icon: 'volume', label: 'Speaking task', manual: true, done: !!t.speak, subHtml: fmt(s.check.speak) });
+    } else {
+      out.push({ key: 'extra', icon: 'target', label: 'Weakest words round', sub: 'Twelve of the words you know least.', done: !!t.extra, href: '#/review/extra' });
+      const name = drillFor(s.after, 1);
+      if (name) out.push(drill(name));
+      out.push({ key: 'speak', icon: 'volume', label: 'Say it out loud', manual: true, done: !!t.speak, sub: 'Read the sentences of any unit from this week aloud.' });
+    }
+    return out;
+  };
+
+  /* Records every finished step, in order. Returns true if anything changed (caller saves). */
+  const planCheck = () => {
+    if (!planOn()) return false;
+    let changed = false;
+    for (const s of planSteps(S.plan.pace)) {
+      if (isDone(s)) continue;
+      if (!stepTasks(s).every((t) => t.done)) break;
+      S.plan.done[s.id] = dayNum();
+      changed = true;
+    }
+    return changed;
+  };
+
+  /* Counts work towards the current step: a number adds to a counter, true sets a flag. */
+  const planTick = (key, flag) => {
+    if (!planOn()) return;
+    const s = curStep();
+    if (!s) return;
+    const t = S.plan.ticks[s.id] || (S.plan.ticks[s.id] = { drill: 0, speak: 0, extra: 0 });
+    t[key] = flag ? 1 : (t[key] || 0) + 1;
+    planCheck();
+  };
+
+  /* Where the learner stands. `day` is days since start (0 on day 1); a step is planned for start + its index. */
+  const planStatus = () => {
+    const steps = planSteps(S.plan.pace);
+    const today = dayNum();
+    const day = today - S.plan.start;
+    const cur = steps.findIndex((s) => !isDone(s));
+    const finished = cur < 0;
+    const doneN = steps.filter(isDone).length;
+    const behind = finished ? 0 : Math.max(0, day - cur);
+    const ahead = finished ? 0 : Math.max(0, cur - day - 1);
+    const todayDone = !finished && cur > day;
+    const end = finished ? today : today + (steps.length - cur) - (todayDone ? 0 : 1);
+    return { steps, cur, step: finished ? null : steps[cur], day, finished, doneN, behind, ahead, todayDone, end };
+  };
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const statusPill = (ps) => (ps.finished ? '<span class="pill ok">' + icon('check') + 'Plan complete</span>'
+    : ps.behind ? '<span class="pill warn">' + plural(ps.behind, 'day') + ' behind</span>'
+      : ps.ahead ? '<span class="pill ok">' + plural(ps.ahead, 'day') + ' ahead</span>'
+        : ps.todayDone ? '<span class="pill ok">' + icon('check') + 'Today done</span>'
+          : '<span class="pill brand">On track</span>');
+  /* Local day number -> short date. Day numbers count local midnights, so read them as UTC. */
+  const fmtDay = (dn) => new Date(dn * 86400000).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+  const newPlan = (pace) => {
+    const now = Date.now();
+    S.plan = Object.assign(emptyPlan(), { id: now, start: dayNum(), pace, setAt: now });
+    planCheck();
+  };
+
+  /* ====================================================================
      Sync (optional): the whole state as one JSON row in the site's database.
      The app always works from localStorage; the server is a shared copy.
      ==================================================================== */
+  const sorted = (o) => Object.keys(o).sort().map((k) => [k, o[k]]);
   const stateSig = (s) => JSON.stringify([s.epoch, s.xp, s.sessions, s.streak, s.drills,
-    Object.keys(s.cards).sort().map((k) => [k, s.cards[k].box, s.cards[k].due, s.cards[k].seen, s.cards[k].ok])]);
+    Object.keys(s.cards).sort().map((k) => [k, s.cards[k].box, s.cards[k].due, s.cards[k].seen, s.cards[k].ok]),
+    [s.plan.id, s.plan.start, s.plan.pace, s.plan.setAt, sorted(s.plan.ticks), sorted(s.plan.done), sorted(s.plan.checks)]]);
+
+  /* Plans: a newer plan replaces an older one. Within one plan, start and pace follow the
+     latest change, and work done on any device counts. */
+  const mergePlan = (a, b) => {
+    if (a.id !== b.id) return hydratePlan(a.id > b.id ? a : b);
+    const base = a.setAt >= b.setAt ? a : b;
+    const out = Object.assign(emptyPlan(), { id: a.id, start: base.start, pace: base.pace, setAt: base.setAt });
+    const keys = (x, y) => Array.from(new Set(Object.keys(x).concat(Object.keys(y)))).sort();
+    keys(a.ticks, b.ticks).forEach((k) => {
+      const p = a.ticks[k] || {};
+      const q = b.ticks[k] || {};
+      out.ticks[k] = { drill: Math.max(p.drill || 0, q.drill || 0), speak: Math.max(p.speak || 0, q.speak || 0), extra: Math.max(p.extra || 0, q.extra || 0) };
+    });
+    keys(a.done, b.done).forEach((k) => { out.done[k] = Math.min(a.done[k] || Infinity, b.done[k] || Infinity); });
+    keys(a.checks, b.checks).forEach((k) => { out.checks[k] = Math.max(a.checks[k] || 0, b.checks[k] || 0); });
+    return out;
+  };
 
   /* Combine this device's state with the server's so that practice done on
      either side survives. Settings stay local. */
@@ -201,6 +393,7 @@
     const cur = ls.last !== rs.last ? (ls.last > rs.last ? ls : rs) : (ls.count >= rs.count ? ls : rs);
     out.streak = { last: cur.last, count: cur.count, best: Math.max(ls.best, rs.best, cur.count) };
     Object.keys(out.drills).forEach((k) => { out.drills[k] = Math.max(local.drills[k], remote.drills[k]); });
+    out.plan = mergePlan(local.plan, remote.plan);
     return out;
   };
 
@@ -394,7 +587,7 @@
 
   /* Called when sync brought in changes from another device. Never interrupts an exercise. */
   const refreshAfterSync = () => {
-    if (sess || /^#\/(practice|drills\/)/.test(location.hash)) { updateChrome(curSection); return; }
+    if (sess || /^#\/(practice|check|review\/extra|drills\/)/.test(location.hash)) { updateChrome(curSection); return; }
     route(true);
   };
 
@@ -430,6 +623,25 @@
       '<text class="ring-t" x="24" y="24">' + pct + '%</text></svg>';
   };
 
+  /* A step's tasks as a ruled list; the first open task gets the primary button. */
+  const taskList = (s) => {
+    const tasks = stepTasks(s);
+    const first = tasks.find((t) => !t.done);
+    const cls = (t) => 'btn' + (t === first ? ' primary' : '');
+    const verb = { review: 'Review', quiz: 'Start', learn: 'Open', drill: 'Drill', extra: 'Start' };
+    return '<ol class="plan tasks">' + tasks.map((t) => {
+      let act = '';
+      if (t.manual) act = t.done ? '' : '<button type="button" class="' + cls(t) + '" data-tick="speak">Done</button>';
+      else if (!t.done) act = '<a class="' + cls(t) + '" href="' + t.href + '">' + verb[t.key] + '</a>';
+      else if (t.key !== 'review') act = '<a class="btn" href="' + t.href + '">Again</a>';
+      return '<li class="' + (t.done ? 'done' : '') + '"><span class="ico">' + icon(t.done ? 'check' : t.icon) + '</span>' +
+        '<div><b>' + esc(t.label) + '</b><small>' + (t.subHtml || esc(t.sub)) + (t.done ? ' <span class="ok-t">Done.</span>' : '') + '</small></div>' + act + '</li>';
+    }).join('') + '</ol>';
+  };
+  const wireTasks = () => {
+    $$('[data-tick]').forEach((b) => { b.onclick = () => { planTick(b.dataset.tick, true); save(); route(true); }; });
+  };
+
   const viewHome = () => {
     const h = new Date().getHours();
     const hello = h < 11 ? 'Guten Morgen!' : h < 18 ? 'Guten Tag!' : 'Guten Abend!';
@@ -439,24 +651,39 @@
     const lv = currentLevel();
     const units = unitsOf(lv.id);
     const stats = units.map(unitStat);
-    const nextIdx = stats.findIndex((x) => !x.done);
+    const nextIdx = stats.findIndex((x) => !x.met);
     const next = nextIdx >= 0 ? units[nextIdx] : null;
     const started = seen > 0;
+    const ps = planOn() ? planStatus() : null;
+    const a1 = levelById(PLAN.level);
 
     const plan = [];
     if (due) plan.push([icon('repeat'), 'Review ' + due + ' word' + (due === 1 ? '' : 's'), 'Due today — do these first', '#/review', 'Review']);
     if (next) plan.push([unitNo(nextIdx), (stats[nextIdx].seen ? 'Continue' : 'Start') + ': ' + next.title, lv.name + ' · ' + next.sub, '#/unit/' + next.id, 'Open']);
     plan.push([icon('zap'), 'Two-minute drill', 'der/die/das, numbers or verbs', '#/drills', 'Drill']);
+    if (!ps && a1 && !levelStat(a1).done) plan.push([icon('target'), 'A1 in a month', 'A day-by-day plan with weekly checkpoints', '#/plan', 'Plan']);
+
+    const final = ps && ps.finished ? S.plan.checks[BASE_STEPS[BASE_STEPS.length - 1].id] || 0 : 0;
+    const today = ps && !ps.finished ? `
+          <span class="eyebrow">Heute · today · Tag ${ps.cur + 1} von ${ps.steps.length}</span>
+          <h1>${hello} ${sayBtn(hello)}</h1>
+          <p class="lede"><b>Day ${ps.cur + 1}: ${esc(stepTitle(ps.step))}</b> ${statusPill(ps)}<br>
+            ${ps.todayDone ? 'Today’s step is done. This is tomorrow’s, if you want to keep going.'
+              : ps.behind ? 'Missed days never reset anything. The plan page has ways to catch up.'
+                : 'About ' + PACE_MIN[S.plan.pace] + ' minutes. Tasks tick themselves off as you go.'}</p>
+          ${taskList(ps.step)}
+          <a class="more" href="#/plan">See the whole plan${icon('arrow-right')}</a>` : `
+          <span class="eyebrow">Heute · today</span>
+          <h1>${hello} ${sayBtn(hello)}</h1>
+          <p class="lede">${ps ? 'You finished the A1 plan' + (final ? ' with ' + final + '% in the final test' : '') + '. Reviews keep the words alive; A2 is next.'
+            : started ? 'Here is today’s plan. Fifteen minutes, about one cup of coffee.' : 'Learn German from zero to B1 in short daily sessions: read a small idea, hear it, then pull it back out of memory.'}</p>
+          <ol class="plan">
+            ${plan.map((p) => `<li><span class="ico">${p[0]}</span><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><a class="btn ${p === plan[0] ? 'primary' : ''}" href="${p[3]}">${p[4]}</a></li>`).join('')}
+          </ol>`;
 
     app.innerHTML = `
       <section class="hero">
-        <div class="card">
-          <span class="eyebrow">Heute · today</span>
-          <h1>${hello} ${sayBtn(hello)}</h1>
-          <p class="lede">${started ? 'Here is today’s plan. Fifteen minutes — about one cup of coffee.' : 'Learn German from zero to B1 in short daily sessions: read a small idea, hear it, then pull it back out of memory.'}</p>
-          <ol class="plan">
-            ${plan.map((p) => `<li><span class="ico">${p[0]}</span><div><b>${esc(p[1])}</b><small>${esc(p[2])}</small></div><a class="btn ${p === plan[0] ? 'primary' : ''}" href="${p[3]}">${p[4]}</a></li>`).join('')}
-          </ol>
+        <div class="card">${today}
         </div>
         <div class="stats">
           <div class="stat"><b>${icon('cup', 'accent')}${streakNow()}</b><span>day streak (best ${S.streak.best})</span></div>
@@ -490,26 +717,31 @@
         <div class="path">
           ${units.map((u, i) => {
             const x = stats[i];
-            const tag = x.done ? '<span class="tag done">' + icon('check') + 'Done</span>' : i === nextIdx ? '<span class="tag next">Up next</span>' : '';
-            return `<a class="card unit ${x.done ? 'done' : i === nextIdx ? 'next' : ''}" href="#/unit/${u.id}">
+            const tag = x.done ? '<span class="tag done">' + icon('check') + 'Done</span>' : i === nextIdx ? '<span class="tag next">Up next</span>' : x.met ? '<span class="tag met">Reviewing</span>' : '';
+            return `<a class="card unit ${x.done ? 'done' : i === nextIdx ? 'next' : x.met ? 'met' : ''}" href="#/unit/${u.id}">
               ${tag}
               <span class="ico">${x.done ? icon('check') : unitNo(i)}</span>
               <h3>${esc(u.title)}</h3>
               <p>${esc(u.sub)}</p>
               <div class="bar" title="${x.seen} of ${x.n} words practised"><i style="width:${x.pct}%"></i></div>
-              <small class="count">${x.seen} / ${x.n} words</small>
+              <small class="count">${x.seen} / ${x.n} words practised · ${x.known} known</small>
             </a>`;
           }).join('')}
         </div>
       </section>`;
+    wireTasks();
   };
 
   /* ====================================================================
      Unit (learn)
      ==================================================================== */
-  const viewUnit = (u) => {
+  /* h ('a' or 'b') shows one half of the unit, as a plan day does. */
+  const viewUnit = (u, h) => {
     const i = D.UNITS.indexOf(u);
     const s = unitStat(u);
+    const words = h ? halfCards(u, h) : cardsOf(u);
+    const sents = h ? halfOf(u.sentences, h) : u.sentences;
+    const hSeen = words.filter((c) => st(c).seen > 0).length;
     const prev = D.UNITS[i - 1];
     const nxt = D.UNITS[i + 1];
     const lv = levelById(u.level);
@@ -521,8 +753,9 @@
       <p class="lede">${esc(u.goal)}</p>
       <div class="unit-prog">
         <div class="bar" title="${s.seen} of ${s.n} words practised"><i style="width:${s.pct}%"></i></div>
-        <small>${s.seen} of ${s.n} words practised · ${s.strong} strong${u.cloze ? ' · ' + u.cloze.length + ' gap-fill questions' : ''}</small>
+        <small>${s.seen} of ${s.n} words practised · ${s.known} known · ${s.strong} strong${u.cloze ? ' · ' + u.cloze.length + ' gap-fill questions' : ''}</small>
       </div>
+      ${h ? `<p class="note">${h === 'a' ? 'Part 1' : 'Part 2'} of this unit: words ${halfRange(u, h)} of ${s.n}${h === 'a' ? '. Read the key ideas first.' : ' and their sentences. Skim the key ideas again first.'} <a href="#/unit/${u.id}">Show the whole unit</a></p>` : ''}
 
       <section>
         <div class="sec-h"><h2>Key ideas</h2><small>Read once, tap the German to hear it</small></div>
@@ -533,7 +766,7 @@
         <div class="sec-h"><h2>Words</h2>
           <label class="toggle"><input type="checkbox" id="hideEn"> Hide English (test yourself)</label></div>
         <div class="words">
-          ${cardsOf(u).map((c) => `<div class="word">${sayBtn(deText(c))}<div>
+          ${words.map((c) => `<div class="word">${sayBtn(deText(c))}<div>
               <span class="de">${deHtml(c)}${c.pl ? `<span class="pl">pl. ${esc(c.pl)}</span>` : ''}</span>
               <span class="en">${esc(c.en)}</span>
               ${c.ex ? `<span class="ex"><button type="button" data-say="${esc(c.ex)}">${esc(c.ex)}</button> <i class="muted">${esc(c.exEn)}</i></span>` : ''}
@@ -544,16 +777,20 @@
       <section>
         <div class="sec-h"><h2>Sentences</h2><small>Say each one out loud after the voice</small></div>
         <div class="sents">
-          ${u.sentences.map((x) => `<div class="sent">${sayBtn(x.de)}<div><b>${esc(x.de)}</b><span class="en">${esc(x.en)}</span></div></div>`).join('')}
+          ${sents.map((x) => `<div class="sent">${sayBtn(x.de)}<div><b>${esc(x.de)}</b><span class="en">${esc(x.en)}</span></div></div>`).join('')}
         </div>
       </section>
 
       <div class="cta">
-        <div><b>${s.done ? 'All words practised' : s.seen ? s.seen + ' of ' + s.n + ' words practised' : 'Ready? About 5 minutes.'}</b><br>
-          <small>${s.done ? 'Practise again any time — reviews will bring the words back.' : 'Each round covers 10 words and a few sentences.'}</small></div>
+        <div><b>${h ? (hSeen === words.length ? 'This part is practised' : 'Ready? About 5 minutes.')
+          : s.done ? 'All words known' : s.met ? 'All words practised' : s.seen ? s.seen + ' of ' + s.n + ' words practised' : 'Ready? About 5 minutes.'}</b><br>
+          <small>${h ? 'One round covers these ' + words.length + ' words and ' + sents.length + ' sentences.'
+            : s.done ? 'Every word was right on two different days. Reviews keep them alive.'
+              : s.met ? 'The unit counts as done once each word is right on two different days. Reviews bring them back.'
+                : 'Each round covers 10 words and a few sentences.'}</small></div>
         <div class="row">
           ${prev ? `<a class="btn icon" href="#/unit/${prev.id}" aria-label="Previous unit" title="Previous unit">${icon('arrow-left')}</a>` : ''}
-          <a class="btn primary" href="#/practice/${u.id}">${s.done ? 'Practise again' : 'Practise'}${icon('arrow-right')}</a>
+          <a class="btn primary" href="#/practice/${u.id}${h ? '/' + h : ''}">${h ? 'Practise words ' + halfRange(u, h) : s.met ? 'Practise again' : 'Practise'}${icon('arrow-right')}</a>
           ${nxt ? `<a class="btn icon" href="#/unit/${nxt.id}" aria-label="Next unit" title="Next unit">${icon('arrow-right')}</a>` : ''}
         </div>
       </div>`;
@@ -617,6 +854,25 @@
       .concat(sentenceEx(u.sentences, u.cloze ? 3 : 4));
   };
 
+  /* One half of a unit: all of its words (at most 11) and its sentences. */
+  const halfQueue = (u, h) => {
+    const cs = halfCards(u, h);
+    return shuffle(cs.map(wordEx).concat(genderEx(cs, 3)))
+      .concat(clozeEx(halfOf(u.cloze || [], h), 3))
+      .concat(sentenceEx(halfOf(u.sentences, h), 4));
+  };
+
+  /* Checkpoint: production-heavy whatever the word's box, so it tests rather than teaches. */
+  const testEx = (c, i) => (i % 3 === 0 ? { kind: 'type', card: c }
+    : i % 3 === 1 ? { kind: 'mc', dir: 'en-de', card: c }
+      : { kind: 'mc', dir: canListen() ? 'listen' : 'de-en', card: c });
+  const checkQueue = (step) => {
+    const units = (step.final ? PLAN_UNITS : PLAN.weeks[step.week].units).map(unitById);
+    const cs = shuffle(units.flatMap(cardsOf)).slice(0, step.final ? 24 : 15);
+    return shuffle(cs.map(testEx).concat(genderEx(cs, step.final ? 4 : 3)))
+      .concat(sentenceEx(units.flatMap((u) => u.sentences), step.final ? 6 : 4));
+  };
+
   const reviewQueue = (cards) => {
     const startedUnits = D.UNITS.filter((u) => unitStat(u).seen > 0);
     const sents = startedUnits.length ? sentenceEx(startedUnits.flatMap((u) => u.sentences), 3) : [];
@@ -631,13 +887,14 @@
     renderSession();
   };
 
-  const startUnit = (u) => startSession({ title: u.title, queue: unitQueue(u), back: '#/unit/' + u.id, again: () => startUnit(u), unit: u });
+  const startUnit = (u, h) => startSession({ title: u.title, queue: h ? halfQueue(u, h) : unitQueue(u), back: '#/unit/' + u.id + (h ? '/' + h : ''), again: () => startUnit(u, h), unit: u, half: h || '' });
+  const startCheck = (step) => startSession({ title: step.check.title, queue: checkQueue(step), back: '#/plan', again: () => startCheck(step), check: step });
 
   const startReview = (extra) => {
     let cards;
     if (extra) cards = shuffle(seenCards()).sort((a, b) => st(a).box - st(b).box).slice(0, 12);
     else cards = dueCards().sort((a, b) => st(a).due - st(b).due).slice(0, 20);
-    startSession({ title: 'Review', queue: reviewQueue(cards), back: '#/review', again: null });
+    startSession({ title: 'Review', queue: reviewQueue(cards), back: '#/review', again: null, extra: !!extra });
   };
 
   /* ---- exercise renderers: each returns HTML and wires itself up in bind() ---- */
@@ -844,16 +1101,22 @@
 
   const renderDone = () => {
     const acc = sess.total ? Math.round((sess.first / sess.total) * 100) : 100;
+    const u = sess.unit;
+    const chk = sess.check;
+    if (chk && planOn()) S.plan.checks[chk.id] = Math.max(S.plan.checks[chk.id] || 0, acc);
+    if (sess.extra) planTick('extra', true);
+    planCheck();
     S.sessions++;
     save();
     Sync.flush();   // a finished round is saved to the account at once
-    updateChrome(sess.unit ? 'learn' : 'review');
+    updateChrome(sess.check || u ? 'learn' : 'review');
     document.body.classList.remove('in-session');
-    const u = sess.unit;
     const s = u ? unitStat(u) : null;
     const nxt = u ? D.UNITS[D.UNITS.indexOf(u) + 1] : null;
     const again = sess.again;
     const moreDue = dueCards().length;
+    const passed = chk && acc >= PLAN.pass;
+    const onPlan = planOn() && !planStatus().finished;
     // a word can be missed twice in one round (meaning + article); list it once
     const missedKeys = new Set();
     const missed = sess.missed.filter((ex) => {
@@ -862,16 +1125,39 @@
     });
 
     let msg;
-    if (u) msg = s.done ? 'Every word in this unit has been practised. Reviews will keep them alive.' : s.seen + ' of ' + s.n + ' words practised — one more round covers the rest.';
+    if (chk) msg = passed ? 'Passed. ' + (chk.final ? 'That is the whole A1 course.' : 'On to next week.') : 'The pass mark is ' + PLAN.pass + '%. The words you missed are due again now: review them, then try again.';
+    else if (u && sess.half) msg = 'Words ' + halfRange(u, sess.half) + ' are practised. They come back for review tomorrow.';
+    else if (u) msg = s.done ? 'Every word in this unit is known. Reviews will keep them alive.'
+      : s.met ? 'Every word has been practised once. The unit counts as done once each word is right on two different days.'
+        : s.seen + ' of ' + s.n + ' words practised. One more round covers the rest.';
     else msg = moreDue ? moreDue + ' more word' + (moreDue === 1 ? ' is' : 's are') + ' waiting (including any you missed).' : 'Nothing else is due today. Come back tomorrow.';
 
+    const btns = [];
+    if (chk) {
+      if (!passed && moreDue) btns.push('<button type="button" class="btn primary" id="more">Review missed words</button>');
+      btns.push('<button type="button" class="btn' + (!passed && !moreDue ? ' primary' : '') + '" id="again">Try again</button>');
+      if (passed) btns.unshift('<a class="btn primary" href="#/">Today’s plan' + icon('arrow-right') + '</a>');
+    } else if (u && sess.half) {
+      if (onPlan) btns.push('<a class="btn primary" href="#/">Today’s plan' + icon('arrow-right') + '</a>');
+      btns.push('<button type="button" class="btn" id="again">Practise again</button>');
+    } else if (u) {
+      if (!s.met) btns.push('<button type="button" class="btn primary" id="again">Next round' + icon('arrow-right') + '</button>');
+      if (s.met && nxt) btns.push(`<a class="btn primary" href="#/unit/${nxt.id}">Next unit: ${esc(nxt.title)}${icon('arrow-right')}</a>`);
+      if (s.met) btns.push('<button type="button" class="btn" id="again">Practise again</button>');
+    } else {
+      if (moreDue) btns.push('<button type="button" class="btn primary" id="more">Keep reviewing</button>');
+      if (onPlan) btns.push('<a class="btn' + (moreDue ? '' : ' primary') + '" href="#/">Today’s plan</a>');
+    }
+    if (!btns.some((b) => /href="#\/"/.test(b))) btns.push('<a class="btn" href="#/">Home</a>');
+
+    const badge = chk ? (passed ? 'award' : 'trend') : acc >= 90 ? 'award' : acc >= 60 ? 'cup' : 'trend';
     app.innerHTML = `
       <div class="session"><div class="card done">
-        <div class="badge ${acc >= 60 ? 'ok' : ''}">${icon(acc >= 90 ? 'award' : acc >= 60 ? 'cup' : 'trend')}</div>
-        <h1>Geschafft!</h1>
+        <div class="badge ${chk ? (passed ? 'ok' : '') : acc >= 60 ? 'ok' : ''}">${icon(badge)}</div>
+        <h1>${chk ? (passed ? 'Bestanden!' : 'Noch nicht') : 'Geschafft!'}</h1>
         <p class="muted">${esc(msg)}</p>
         <div class="stats">
-          <div class="stat"><b>${acc}%</b><span>right first time</span></div>
+          <div class="stat"><b>${acc}%</b><span>${chk ? 'score (pass at ' + PLAN.pass + '%)' : 'right first time'}</span></div>
           <div class="stat"><b>+${sess.xp}</b><span>XP</span></div>
           <div class="stat"><b>${icon('cup', 'accent')}${streakNow()}</b><span>day streak</span></div>
         </div>
@@ -882,13 +1168,7 @@
           const h = ex.card ? deHtml(ex.card) : esc(ex.sent.de);
           return '<li>' + sayBtn(t) + '<span><b>' + h + '</b> — ' + esc(ex.card ? ex.card.en : ex.sent.en) + '</span></li>';
         }).join('') + '</ul>' : ''}
-        <div class="row">
-          ${u && !s.done ? '<button type="button" class="btn primary" id="again">Next round' + icon('arrow-right') + '</button>' : ''}
-          ${u && s.done && nxt ? `<a class="btn primary" href="#/unit/${nxt.id}">Next unit: ${esc(nxt.title)}${icon('arrow-right')}</a>` : ''}
-          ${u && s.done ? '<button type="button" class="btn" id="again">Practise again</button>' : ''}
-          ${!u && moreDue ? '<button type="button" class="btn primary" id="more">Keep reviewing</button>' : ''}
-          <a class="btn" href="#/">Home</a>
-        </div>
+        <div class="row">${btns.join('')}</div>
       </div></div>`;
     if ($('#again')) $('#again').onclick = again;
     if ($('#more')) $('#more').onclick = () => startReview(false);
@@ -996,7 +1276,7 @@
         $('#st').textContent = String(streak);
         bumpBest('gender', streak);
         if (ok) S.xp += 2;
-        touchStreak(); save(); updateChrome('drills');
+        planTick('drill'); touchStreak(); save(); updateChrome('drills');
         $('#noun').innerHTML = deHtml(cur);
         $('#hint').innerHTML = (ok ? '<b class="ok-t">' + icon('check') + ' ' + pick(PRAISE) + '</b>' : '<b class="bad-t">' + icon('x') + ' It is ' + deHtml(cur) + '</b>') +
           (cur.pl ? ' <span class="muted">· plural: die ' + esc(cur.pl) + '</span>' : '') + ruleNote(cur);
@@ -1052,7 +1332,7 @@
       $('#st').textContent = String(streak);
       bumpBest(o.key, streak);
       if (ok) S.xp += 2;
-      touchStreak(); save(); updateChrome('drills');
+      planTick('drill'); touchStreak(); save(); updateChrome('drills');
       $('#hint').innerHTML = (ok ? '<b class="ok-t">' + icon('check') + ' ' + pick(PRAISE) + '</b> ' : '<b class="bad-t">' + icon('x') + ' Not quite.</b> ') + cur.solution;
       btn.textContent = 'Next';
       btn.focus();
@@ -1119,6 +1399,96 @@
   };
 
   /* ====================================================================
+     Plan page
+     ==================================================================== */
+  const viewPlan = () => {
+    if (!planOn()) {
+      const today = dayNum();
+      const words = PLAN_UNITS.map(unitById).flatMap(cardsOf).length;
+      app.innerHTML = `
+        ${backLink('#/', 'Home')}
+        <span class="eyebrow">Monatsplan · month plan</span>
+        <h1>A1 in a month</h1>
+        <p class="lede">One step a day through all ${PLAN_UNITS.length} A1 units: each unit over two days, a checkpoint quiz and a speaking task at the end of every week, and a final test on the last day. Each day’s tasks tick themselves off as you do them.</p>
+        <section>
+          <div class="sec-h"><h2>Pick a pace</h2><small>You can change it later without losing anything</small></div>
+          <div class="paces">${PACES.map((n) => `<button type="button" class="card pace" data-pace="${n}"><b>${n} days</b><span>About ${PACE_MIN[n]} minutes a day</span><small>Finish around ${fmtDay(today + n - 1)}</small></button>`).join('')}</div>
+          <p class="note" style="margin-top:12px">Words you have already practised count straight away. The plan covers this app’s A1 course, about ${words} words. For an A1 exam, add real listening and reading as well: the Guide lists free resources.</p>
+        </section>`;
+      $$('[data-pace]').forEach((b) => { b.onclick = () => { newPlan(+b.dataset.pace); save(); route(); }; });
+      return;
+    }
+
+    const ps = planStatus();
+    const N = ps.steps.length;
+    const slower = PACES.find((n) => n > S.plan.pace);
+    const row = (x, i) => {
+      const done = isDone(x);
+      const now = i === ps.cur;
+      const late = !done && !now && i < ps.day;
+      const href = x.kind === 'learn' ? '#/unit/' + x.unit.id + '/' + x.half : x.kind === 'check' ? '#/check/' + x.id : '';
+      const title = esc(stepTitle(x));
+      return `<li class="${done ? 'done' : now ? 'now' : late ? 'late' : x.kind === 'rest' ? 'rest' : ''}">
+        <span class="n" title="Day ${i + 1}${done ? ', done' : ''}">${done ? icon('check') : i + 1}</span>
+        <span>${href ? `<a href="${href}">${title}</a>` : title}${now ? ' <span class="pill brand">' + (ps.todayDone ? 'Next' : 'Today') + '</span>' : ''}</span>
+        <small>${fmtDay(S.plan.start + i)}</small></li>`;
+    };
+
+    app.innerHTML = `
+      ${backLink('#/', 'Home')}
+      <span class="eyebrow">Monatsplan · month plan</span>
+      <h1>A1 in ${S.plan.pace} days</h1>
+      <div class="card plan-head">
+        <div class="row"><b class="plan-day">Day ${ps.finished ? N : ps.cur + 1} of ${N}</b>${statusPill(ps)}</div>
+        <div class="bar" title="${ps.doneN} of ${N} days done"><i style="width:${Math.round((ps.doneN / N) * 100)}%"></i></div>
+        <small>${ps.doneN} of ${N} days done · started ${fmtDay(S.plan.start)} · ${ps.finished ? 'finished' : 'at this rate you finish ' + fmtDay(ps.end)}</small>
+      </div>
+
+      ${ps.behind ? `<div class="note catchup">
+        <p><b>${plural(ps.behind, 'day')} behind.</b> Missed days never reset anything. To catch up, do two days today (the next one opens as soon as this one is done), or:</p>
+        <div class="row"><button type="button" class="btn" id="shift">Push the plan back ${plural(ps.behind, 'day')}</button>
+          ${slower ? `<button type="button" class="btn" data-pace="${slower}">Switch to ${slower} days</button>` : ''}</div>
+      </div>` : ''}
+
+      ${ps.finished ? `<section><div class="card empty"><div class="badge ok">${icon('award')}</div><h2>A1 plan complete</h2>
+          <p class="muted">Final test: ${S.plan.checks[BASE_STEPS[BASE_STEPS.length - 1].id] || 0}%. Keep doing the daily review so the words stay. A2 is next.</p>
+          <a class="btn primary" href="#/level/a2">Go to A2</a></div></section>`
+        : `<section><div class="sec-h"><h2>${ps.todayDone ? 'Next up' : 'Today'}: day ${ps.cur + 1}</h2><small>${esc(stepTitle(ps.step))}</small></div>
+          <div class="card">${taskList(ps.step)}</div></section>`}
+
+      <section>
+        <div class="sec-h"><h2>All days</h2><small>Tap a day to open it</small></div>
+        <div class="weeks">${PLAN.weeks.map((w, wi) => `<div class="card week">
+          <span class="eyebrow">Woche ${wi + 1} · week ${wi + 1}</span>
+          <h3>${w.units.map((id) => esc(unitById(id).title)).join(', ')}</h3>
+          <ol class="days">${ps.steps.map((x, i) => (x.week === wi ? row(x, i) : '')).join('')}</ol>
+        </div>`).join('')}</div>
+      </section>
+
+      <section>
+        <div class="sec-h"><h2>Plan settings</h2></div>
+        <div class="card settings">
+          <div class="line-item"><span><b>Pace</b><br><small>Changing it keeps every finished day. Slower paces add consolidation days.</small></span>
+            <div class="seg">${PACES.map((n) => `<button type="button" data-pace="${n}" class="${n === S.plan.pace ? 'on' : ''}">${n} days</button>`).join('')}</div></div>
+          <div class="line-item"><span><b>Stop the plan</b><br><small>Clears its days and checkpoint scores. Word progress stays.</small></span>
+            <button type="button" class="btn danger" id="stop">Stop</button></div>
+        </div>
+      </section>`;
+
+    wireTasks();
+    $$('[data-pace]').forEach((b) => {
+      b.onclick = () => { S.plan.pace = +b.dataset.pace; S.plan.setAt = Date.now(); planCheck(); save(); route(true); };
+    });
+    if ($('#shift')) $('#shift').onclick = () => { S.plan.start += ps.behind; S.plan.setAt = Date.now(); save(); route(true); };
+    let armed = false;
+    $('#stop').onclick = (e) => {
+      if (!armed) { armed = true; e.target.textContent = 'Click again to stop'; return; }
+      S.plan = Object.assign(emptyPlan(), { id: Date.now(), setAt: Date.now() });
+      save(); route();
+    };
+  };
+
+  /* ====================================================================
      Grammar sheets + guide
      ==================================================================== */
   const viewSheets = (levelId) => {
@@ -1148,6 +1518,15 @@
           <li><b>One drill</b> (2 min): der/die/das, numbers or verbs.</li>
           <li><b>Say everything out loud.</b> Tap, listen, repeat. Feeling silly is part of the method.</li>
         </ol></div>
+      </section>
+
+      <section>
+        <div class="sec-h"><h2>A1 in a month</h2></div>
+        <div class="card">
+          <p>The month plan turns the A1 course into one step a day: each unit over two days, a checkpoint quiz and a speaking task at the end of every week, and a final test on the last day. At 30 days it takes about 30 minutes a day; 45 and 60 days take about 20 and 15.</p>
+          <p>A unit counts as done once every word was right on two different days, not just seen once. Missed days never reset the plan: do two days at once, push it back, or switch to a slower pace.</p>
+          <a class="btn primary" href="#/plan">${planOn() ? 'Open the plan' : 'Start the plan'}</a>
+        </div>
       </section>
 
       <section>
@@ -1263,13 +1642,17 @@
     sess = null;
     if (synth) synth.cancel();
     document.body.classList.remove('in-session');
-    const [a, b] = location.hash.replace(/^#\/?/, '').split('/');
+    const [a, b, c] = location.hash.replace(/^#\/?/, '').split('/');
+    const half = c === 'a' || c === 'b' ? c : '';
     let section = 'learn';
     const fromHome = !!$('#path');   // true while the home page is on screen
+    if (planCheck()) save();         // e.g. reviews cleared since the last screen
 
-    if (a === 'unit' && unitById(b)) viewUnit(unitById(b));
-    else if (a === 'practice' && unitById(b)) startUnit(unitById(b));
-    else if (a === 'review') { section = 'review'; viewReview(); }
+    if (a === 'unit' && unitById(b)) viewUnit(unitById(b), half);
+    else if (a === 'practice' && unitById(b)) startUnit(unitById(b), half);
+    else if (a === 'check' && checkStep(b) && planOn()) startCheck(checkStep(b));
+    else if (a === 'plan' || a === 'check') viewPlan();
+    else if (a === 'review') { section = 'review'; if (b === 'extra' && seenCards().length) startReview(true); else viewReview(); }
     else if (a === 'drills') { section = 'drills'; ({ gender: viewGender, numbers: viewNumbers, verbs: viewVerbs }[b] || viewDrills)(); }
     else if (a === 'grammar') { section = 'grammar'; viewSheets(b); }
     else if (a === 'level' && levelById(b)) {

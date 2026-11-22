@@ -107,6 +107,13 @@ try {
   await shot('27-grammar', true);
   await goto('#/guide');
   await shot('28-guide', true);
+  await goto('#/plan');
+  await shot('29-plan-start');
+  await js('document.querySelector(\'[data-pace="30"]\').click(); 1');
+  await sleep(350);
+  await shot('30-plan', true);
+  await goto('#/');
+  await shot('31-home-plan');
   console.log(problems.length ? 'PROBLEMS ' + JSON.stringify(problems) : 'no browser errors');
 } finally {
   ws.close();

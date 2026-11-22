@@ -98,11 +98,13 @@ npx wrangler dev
 | Area | What it does |
 | --- | --- |
 | **Learn** | Three levels: A1 (13 units), A2 (12) and B1 (12). Each unit has a few short key ideas, about 20 words with audio, example sentences, then a practice round. Level cards show a progress ring; every unit and every word shows how far along it is. |
-| **Review** | Spaced repetition. A word returns after 1, 3, 7, 14, 30 and 60 days; a miss sends it back to the start. |
+| **Month plan** | A1 as one step a day: each unit over two days, a checkpoint quiz (pass at 80%) and a speaking task at the end of every week, and a final test. Paces of 30, 45 or 60 days. Tasks tick themselves off; missed days never reset it. |
+| **Review** | Spaced repetition. A word returns after 1, 3, 7, 14, 30 and 60 days; a miss sends it back to the start. A word only moves up when it was due, so practising it again the same day does not count twice. |
 | **Drills** | Endless quick reps for der/die/das, numbers and present-tense verb forms. |
 | **Grammar** | Reference sheets per level. A2 and B1 open with an overview of the telc exam and how the course maps to it. |
 | **Guide** | A 15-minute daily plan, the reasoning behind the method, external resources, settings, sync, backup and sign-out. |
 
+A unit counts as done once every word was right on two different days, not after one look.
 Exercises get harder as a word gets stronger: recognise it, pick it, hear it, then type it.
 Nouns are always shown with their article and a fixed colour (der blue, die pink, das green).
 A2 and B1 rounds add gap-fill questions in the style of telc "Sprachbausteine", and each unit
@@ -175,6 +177,10 @@ registers its units with `DE_DATA.addUnits('a2', [...])` and its reference sheet
 - Gap-fill: `c('Ich bleibe zu Hause, ___ ich krank bin.', 'weil', ['denn', 'deshalb', 'dass'], 'I am staying at home because I am ill.', 'weil sends the verb to the end.')` —
   sentence with one gap, the answer, three wrong options, English, and the reason shown afterwards.
 - In tip and sheet HTML, `{{Guten Tag}}` renders a chip that speaks the text when tapped.
+
+The month plan (`PLAN` in `public/js/data.js`) lists the A1 units week by week, the checkpoint
+title and speaking task for each week, and which unit unlocks each drill. Plan days are stored
+by id (`u3a`, `cp1`), so never rename a checkpoint id either.
 
 Within one unit every English gloss must be unique, because the glosses double as
 multiple-choice options. Unit ids are part of every stored progress record, so never rename one.

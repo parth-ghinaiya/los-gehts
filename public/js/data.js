@@ -796,6 +796,30 @@
     ['Tandem', 'https://www.tandem.net', 'Language exchange with native speakers. No app replaces actually talking — start around unit 6.'],
   ];
 
+  /* The A1 month plan. Each unit takes two days (its words in two halves), each week ends
+     with a checkpoint: a quiz on that week's units and a speaking task. The last checkpoint
+     is the final test over all of A1. That makes 30 days; slower paces add consolidation
+     days in between (see app.js). `drills` names the unit that unlocks each drill. */
+  const PLAN = {
+    level: 'a1',
+    pass: 80,
+    drills: { u3: 'numbers', u4: 'gender', u6: 'verbs' },
+    weeks: [
+      { units: ['u1', 'u2', 'u3'],
+        check: { id: 'cp1', title: 'Week 1 checkpoint',
+          speak: 'Introduce yourself out loud: greet, say your name, where you come from and how old you are, then ask the same back. {{Guten Tag!}} {{Woher kommst du?}} {{Wie alt bist du?}}' } },
+      { units: ['u4', 'u5', 'u6'],
+        check: { id: 'cp2', title: 'Week 2 checkpoint',
+          speak: 'Name five things around you with der, die or das, then say who is in your family and what they do. {{Das ist ein Tisch.}} {{Ich habe eine Schwester.}} {{Sie wohnt in Berlin.}}' } },
+      { units: ['u7', 'u8', 'u9'],
+        check: { id: 'cp3', title: 'Week 3 checkpoint',
+          speak: 'Play a café visit: ask for the menu, order a drink and a meal, say what you do not want, and ask for the bill. {{Die Speisekarte, bitte.}} {{Ich möchte einen Kaffee.}} {{Ich nehme keinen Kuchen.}} {{Die Rechnung, bitte!}}' } },
+      { units: ['u10', 'u11', 'u12', 'u13'],
+        check: { id: 'cp4', title: 'Final A1 test',
+          speak: 'Talk for one minute without stopping: introduce yourself, describe a normal day with times, say what you can and must do, and tell what you did yesterday. {{Ich stehe um sieben Uhr auf.}} {{Ich muss heute arbeiten.}} {{Gestern habe ich Deutsch gelernt.}}' } },
+    ],
+  };
+
   /* Levels follow the Common European Framework (CEFR). A2 and B1 are built towards the
      telc Deutsch A2 and telc Deutsch B1 exams. `roast` is the level's nickname in the app. */
   const LEVELS = [
@@ -811,7 +835,7 @@
 
   root.DE_BUILD = { n, x, s, c, g, tbl };
   root.DE_DATA = {
-    LEVELS, UNITS, VERBS, SHEETS, METHOD, RESOURCES,
+    LEVELS, UNITS, VERBS, SHEETS, METHOD, RESOURCES, PLAN,
     addUnits(level, units) { units.forEach((u) => { u.level = level; UNITS.push(u); }); },
     addSheets(level, sheets) { sheets.forEach((sh) => { sh.level = level; SHEETS.push(sh); }); },
   };

@@ -128,7 +128,7 @@ try {
   check('round: server holds exactly what the device holds', serverXp === localXp && localXp > 0, { serverXp, localXp });
 
   /* ---------- other views under the content security policy ---------- */
-  for (const h of ['#/', '#/unit/u4', '#/unit/a2u7', '#/unit/b1u11', '#/review', '#/drills', '#/drills/gender', '#/drills/numbers', '#/drills/verbs', '#/grammar', '#/grammar/a2', '#/grammar/b1', '#/guide']) {
+  for (const h of ['#/', '#/unit/u4', '#/unit/a2u7', '#/unit/b1u11', '#/review', '#/drills', '#/drills/gender', '#/drills/numbers', '#/drills/verbs', '#/grammar', '#/grammar/a2', '#/grammar/b1', '#/guide', '#/plan']) {
     await js(`location.hash = ${JSON.stringify(h)}; 1`);
     await sleep(250);
   }
@@ -160,6 +160,18 @@ try {
   await js('location.hash = "#/guide"; 1'); await sleep(300);
   await js('document.getElementById("syncSection") ? 0 : document.querySelector("#signOut").scrollIntoView(); 1');
   await shot('5-guide');
+
+  /* ---------- month plan ---------- */
+  await js('location.hash = "#/plan"; 1'); await sleep(300);
+  await js('document.querySelector(\'[data-pace="30"]\').click(); 1'); await sleep(300);
+  check('plan: starting it shows day 1 of 30', /Day 1 of 30/.test(await js('document.querySelector(".plan-head").textContent')));
+  check('plan: 30 days over 4 weeks', (await js('document.querySelectorAll(".days li").length')) === 30 && (await js('document.querySelectorAll(".week").length')) === 4);
+  await js('location.hash = "#/"; 1'); await sleep(300);
+  check('plan: home lists today\'s tasks', (await js('document.querySelectorAll(".hero .tasks li").length')) >= 3);
+  check('plan: reaches the server', await until('fetch("/api/progress").then((r) => r.json()).then((j) => !!(j.data.plan && j.data.plan.start > 0))', 6000));
+  await js('location.hash = "#/unit/u1/a"; 1'); await sleep(300);
+  check('plan: half-unit page lists its 9 words', (await js('document.querySelectorAll(".word").length')) === 9);
+  await js('location.hash = "#/guide"; 1'); await sleep(300);
 
   /* ---------- failure indicator ---------- */
   await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });

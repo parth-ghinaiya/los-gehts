@@ -99,6 +99,23 @@ check('in sync: GET only', d.calls.join() === 'GET /api/progress', d.calls);
 d = await device({}, { cookie });
 check('new device: progress restored after sign-in alone', Object.keys(d.local().cards).length === 3 && d.local().xp === 50 && d.calls.join() === 'GET /api/progress', d.calls);
 
+/* ---------- month plan ---------- */
+const pl = (o) => Object.assign({ id: 500, start: 20000, pace: 30, setAt: 1, ticks: {}, done: {}, checks: {} }, o);
+await server(cookie, 'PUT', { cards: {}, xp: 0, plan: pl({ pace: 45, setAt: 9, ticks: { u1a: { drill: 3, speak: 1 } }, done: { u1a: 20001 }, checks: { cp1: 60 } }) });
+d = await device({ [KEY]: JSON.stringify({ cards: {}, xp: 0, plan: pl({ ticks: { u1a: { drill: 7 }, u1b: { speak: 1 } }, done: { u1a: 20000, u1b: 20002 }, checks: { cp1: 85 } }) }) }, { cookie });
+local = d.local(); remote = (await server(cookie)).data;
+check('plan merge: latest pace change wins', local.plan.pace === 45 && local.plan.setAt === 9, local.plan);
+check('plan merge: work from both devices counts', local.plan.ticks.u1a.drill === 7 && local.plan.ticks.u1a.speak === 1 && local.plan.ticks.u1b.speak === 1 && local.plan.done.u1a === 20000 && local.plan.done.u1b === 20002, local.plan);
+check('plan merge: best checkpoint score kept', local.plan.checks.cp1 === 85, local.plan.checks);
+check('plan merge: server receives the combined plan', JSON.stringify(remote.plan) === JSON.stringify(local.plan), remote.plan);
+await server(cookie, 'PUT', { cards: {}, xp: 0, plan: pl({ id: 900, start: 0, setAt: 900 }) });
+d = await device({ [KEY]: JSON.stringify(local) }, { cookie });
+check('plan merge: a newer plan (here: stopped) replaces the old one', d.local().plan.id === 900 && d.local().plan.start === 0 && Object.keys(d.local().plan.done).length === 0, d.local().plan);
+await server(cookie, 'PUT', { cards: {}, plan: { id: 'x', start: -5, pace: 7, ticks: { 'BAD KEY': { speak: 1 }, u1a: 'str' }, done: { u1a: 'soon' }, checks: { cp1: 500 } } });
+d = await device({}, { cookie });
+const hp = d.local().plan;
+check('hydrate: hostile plan values coerced', hp.id === 0 && hp.start === 0 && hp.pace === 30 && Object.keys(hp.ticks).length === 0 && Object.keys(hp.done).length === 0 && hp.checks.cp1 === 100, hp);
+
 d = await device({ [KEY]: JSON.stringify({ cards: {}, xp: 0, epoch: 9999999999999 }) }, { cookie });
 remote = (await server(cookie)).data;
 check('reset: replaces server data', Object.keys(remote.cards).length === 0 && remote.epoch === 9999999999999);
