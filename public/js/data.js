@@ -11,6 +11,14 @@
   /* Gap-fill ("Sprachbausteine" in telc exams): `de` holds exactly one ___, `answer` fills it,
      `wrong` lists three wrong options, `why` is a one-line reason shown after answering. */
   const c = (de, answer, wrong, en, why) => ({ de, answer, wrong, en, why: why || '' });
+  /* Dialogue line, and a question about it: the first option is the right one (shuffled when shown). */
+  const d = (who, de, en) => ({ who, de, en });
+  const q = (de, en, opts) => ({ de, en, opts });
+  /* Writing tasks. Form field: `show` is a right answer; it passes if every word in `all` appears,
+     or its digits equal one of `digits`. Message point: passes if any key starts a word (keys in
+     the normalised form of util.js norm: lower case, ä -> ae, ß -> ss). */
+  const f = (label, en, show, rule) => Object.assign({ label, en, show }, rule);
+  const p = (en, keys) => ({ en, keys });
   const g = (k, t) => '<b class="g-' + k + '">' + (t || k) + '</b>';          // gender-coloured text
   const tbl = (head, rows) =>
     '<div class="tblwrap"><table class="tbl"><thead><tr>' +
@@ -51,6 +59,19 @@
         x('Wie bitte?', 'Pardon? (I didn’t catch that)'),
         x('genau', 'exactly', 'Ja, genau!', 'Yes, exactly!'),
         x('Kein Problem', 'no problem'),
+        /* more A1 words */
+        n('der', 'Name', 'Namen', 'name', 'Mein Name ist Alice.', 'My name is Alice.'),
+        n('der', 'Vorname', 'Vornamen', 'first name', 'Wie ist Ihr Vorname?', 'What is your first name?'),
+        n('die', 'Adresse', 'Adressen', 'address', 'Wie ist deine Adresse?', 'What is your address?'),
+        n('die', 'Telefonnummer', 'Telefonnummern', 'phone number', 'Meine Telefonnummer ist 0176 234 567.', 'My phone number is 0176 234 567.'),
+        n('das', 'Land', 'Länder', 'country', 'Aus welchem Land kommst du?', 'Which country are you from?'),
+        n('die', 'Sprache', 'Sprachen', 'language', 'Ich spreche zwei Sprachen.', 'I speak two languages.'),
+        x('Deutsch', 'German (language)', 'Ich lerne Deutsch.', 'I am learning German.'),
+        x('Englisch', 'English (language)', 'Sprichst du Englisch?', 'Do you speak English?'),
+        x('Herzlich willkommen!', 'welcome!'),
+        x('Es tut mir leid.', 'I am sorry.'),
+        x('Gern geschehen.', 'you are welcome; my pleasure', 'Danke! Gern geschehen.', 'Thanks! My pleasure.'),
+        x('Bis bald!', 'see you soon'),
       ],
       sentences: [
         s('Ich heiße Alice.', 'My name is Alice.'),
@@ -62,6 +83,24 @@
         s('Sprechen Sie Englisch?', 'Do you speak English? (formal)'),
         s('Ich verstehe nicht.', 'I don’t understand.'),
       ],
+      dialog: {
+        title: 'Im Deutschkurs', setting: 'Alice and Bob meet on the first day of a German course.',
+        lines: [
+          d('Alice', 'Hallo! Ich heiße Alice. Wie heißt du?', 'Hello! My name is Alice. What is your name?'),
+          d('Bob', 'Hallo, Alice! Mein Name ist Bob.', 'Hi, Alice! My name is Bob.'),
+          d('Alice', 'Freut mich! Woher kommst du?', 'Nice to meet you! Where are you from?'),
+          d('Bob', 'Ich komme aus Kanada. Und du?', 'I come from Canada. And you?'),
+          d('Alice', 'Ich komme aus Indien. Wie geht’s?', 'I come from India. How are you?'),
+          d('Bob', 'Gut, danke! Sprichst du Englisch?', 'Good, thanks! Do you speak English?'),
+          d('Alice', 'Ja, aber hier sprechen wir Deutsch!', 'Yes, but here we speak German!'),
+          d('Bob', 'Genau! Bis später, Alice.', 'Exactly! See you later, Alice.'),
+        ],
+        questions: [
+          q('Woher kommt Bob?', 'Where does Bob come from?', ['aus Kanada', 'aus Indien', 'aus Deutschland']),
+          q('Wer kommt aus Indien?', 'Who comes from India?', ['Alice', 'Bob', 'Alice und Bob']),
+          q('Welche Sprache sprechen sie im Kurs?', 'Which language do they speak in the course?', ['Deutsch', 'Englisch', 'Spanisch']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 2 */
@@ -117,6 +156,18 @@
         x('spät', 'late'),
         n('der', 'Käse', '', 'cheese'),
         n('die', 'Sonne', 'Sonnen', 'sun'),
+        /* more A1 words */
+        n('der', 'Stift', 'Stifte', 'pen', 'Hast du einen Stift?', 'Do you have a pen?'),
+        n('das', 'Licht', 'Lichter', 'light'),
+        n('die', 'Brille', 'Brillen', 'glasses (for the eyes)', 'Wo ist meine Brille?', 'Where are my glasses?'),
+        n('das', 'Wort', 'Wörter', 'word', 'Das Wort ist neu.', 'The word is new.'),
+        n('die', 'Seite', 'Seiten', 'page', 'Lies Seite zehn.', 'Read page ten.'),
+        n('das', 'Papier', 'Papiere', 'paper'),
+        n('das', 'Heft', 'Hefte', 'exercise book; notebook'),
+        n('das', 'Spiel', 'Spiele', 'game'),
+        x('viel', 'much; a lot', 'Ich lerne viel.', 'I am learning a lot.'),
+        x('wieder', 'again', 'Heute scheint wieder die Sonne.', 'The sun is shining again today.'),
+        x('wichtig', 'important', 'Das ist wichtig.', 'That is important.'),
       ],
       sentences: [
         s('Das Wasser ist kalt.', 'The water is cold.'),
@@ -126,6 +177,23 @@
         s('Ich trinke Wasser.', 'I am drinking water.'),
         s('Heute scheint die Sonne.', 'The sun is shining today.', ['Die Sonne scheint heute.']),
       ],
+      dialog: {
+        title: 'In der Stadt', setting: 'Two friends sit outside a café on a sunny day.',
+        lines: [
+          d('Bob', 'Heute scheint die Sonne.', 'The sun is shining today.'),
+          d('Alice', 'Ja, und die Stadt ist schön.', 'Yes, and the town is beautiful.'),
+          d('Bob', 'Das Haus ist neu.', 'That house is new.'),
+          d('Alice', 'Ich trinke Wasser. Und du?', 'I am drinking water. And you?'),
+          d('Bob', 'Ich trinke ein Bier.', 'I am having a beer.'),
+          d('Alice', 'Ein Bier? Heute? Es ist früh!', 'A beer? Today? It is early!'),
+          d('Bob', 'Nein, es ist schon spät!', 'No, it is already late!'),
+        ],
+        questions: [
+          q('Was scheint heute?', 'What is shining today?', ['die Sonne', 'das Licht', 'der Zug']),
+          q('Wie ist die Stadt?', 'What is the town like?', ['schön', 'neu', 'spät']),
+          q('Was trinkt Alice?', 'What is Alice drinking?', ['Wasser', 'Bier', 'Wein']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 3 */
@@ -149,6 +217,18 @@
         n('die', 'Zahl', 'Zahlen', 'number'),
         n('der', 'Euro', 'Euro', 'euro', 'Das kostet zehn Euro.', 'That costs ten euros.'),
         x('wie viel', 'how much', 'Wie viel kostet das?', 'How much does that cost?'),
+        /* more A1 words */
+        x('vierzig', 'forty'),
+        x('fünfzig', 'fifty'),
+        x('sechzig', 'sixty'),
+        x('siebzig', 'seventy'),
+        x('achtzig', 'eighty'),
+        x('neunzig', 'ninety'),
+        n('der', 'Cent', 'Cent', 'cent', 'Das kostet neunzig Cent.', 'That costs ninety cents.'),
+        n('der', 'Preis', 'Preise', 'price', 'Der Preis ist gut.', 'The price is good.'),
+        n('das', 'Geld', '', 'money', 'Ich habe kein Geld.', 'I have no money.'),
+        n('das', 'Alter', '', 'age', 'Name und Alter, bitte.', 'Name and age, please.'),
+        n('die', 'Nummer', 'Nummern', 'number (on a house, ticket, phone)', 'Die Nummer ist sieben.', 'The number is seven.'),
       ],
       sentences: [
         s('Wie alt bist du?', 'How old are you?'),
@@ -157,6 +237,24 @@
         s('Das kostet fünf Euro.', 'That costs five euros.'),
         s('Ich habe zwei Kinder.', 'I have two children.'),
       ],
+      dialog: {
+        title: 'Auf dem Markt', setting: 'Bob buys cheese and water at a market stall.',
+        lines: [
+          d('Bob', 'Guten Tag! Was kostet der Käse?', 'Good day! How much is the cheese?'),
+          d('Verkäuferin', 'Der Käse kostet fünf Euro.', 'The cheese costs five euros.'),
+          d('Bob', 'Und das Wasser?', 'And the water?'),
+          d('Verkäuferin', 'Das Wasser kostet neunzig Cent.', 'The water costs ninety cents.'),
+          d('Bob', 'Gut. Den Käse und zwei Wasser, bitte.', 'Good. The cheese and two waters, please.'),
+          d('Verkäuferin', 'Das macht sechs Euro achtzig.', 'That comes to six euros eighty.'),
+          d('Bob', 'Bitte schön.', 'Here you go.'),
+          d('Verkäuferin', 'Danke! Tschüss!', 'Thanks! Bye!'),
+        ],
+        questions: [
+          q('Was kostet der Käse?', 'How much is the cheese?', ['fünf Euro', 'sechs Euro', 'neunzig Cent']),
+          q('Wie viel Wasser kauft Bob?', 'How much water does Bob buy?', ['zwei Wasser', 'ein Wasser', 'drei Wasser']),
+          q('Wie viel bezahlt Bob?', 'How much does Bob pay?', ['sechs Euro achtzig', 'fünf Euro neunzig', 'sieben Euro']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 4 */
@@ -195,6 +293,18 @@
         n('der', 'Computer', 'Computer', 'computer'),
         n('das', 'Zimmer', 'Zimmer', 'room'),
         n('die', 'Tasche', 'Taschen', 'bag'),
+        /* more A1 words */
+        n('der', 'Balkon', 'Balkone', 'balcony', 'Die Wohnung hat einen Balkon.', 'The flat has a balcony.'),
+        n('die', 'Toilette', 'Toiletten', 'toilet'),
+        n('das', 'Sofa', 'Sofas', 'sofa', 'Das Sofa ist neu.', 'The sofa is new.'),
+        n('die', 'Dusche', 'Duschen', 'shower'),
+        n('das', 'Foto', 'Fotos', 'photo', 'Das Foto ist schön.', 'The photo is beautiful.'),
+        n('der', 'Garten', 'Gärten', 'garden', 'Das Haus hat einen Garten.', 'The house has a garden.'),
+        n('die', 'Karte', 'Karten', 'card; map; ticket'),
+        n('der', 'Teller', 'Teller', 'plate'),
+        n('die', 'Flasche', 'Flaschen', 'bottle', 'Eine Flasche Wasser, bitte.', 'A bottle of water, please.'),
+        n('der', 'Kugelschreiber', 'Kugelschreiber', 'ballpoint pen'),
+        n('der', 'Kühlschrank', 'Kühlschränke', 'fridge'),
       ],
       sentences: [
         s('Das ist ein Tisch.', 'That is a table.'),
@@ -205,6 +315,24 @@
         s('Die Wohnung ist schön.', 'The apartment is nice.'),
         s('Wo ist das Auto?', 'Where is the car?'),
       ],
+      dialog: {
+        title: 'Die neue Wohnung', setting: 'Alice shows Bob her new flat.',
+        lines: [
+          d('Alice', 'Das ist die Wohnung.', 'This is the flat.'),
+          d('Bob', 'Schön! Das Zimmer ist groß.', 'Nice! The room is big.'),
+          d('Alice', 'Ja, und das Fenster ist groß. Hier ist der Balkon.', 'Yes, and the window is big. Here is the balcony.'),
+          d('Bob', 'Und das? Ist das ein Sofa?', 'And that? Is that a sofa?'),
+          d('Alice', 'Ja, das Sofa ist neu.', 'Yes, the sofa is new.'),
+          d('Bob', 'Wo ist die Toilette?', 'Where is the toilet?'),
+          d('Alice', 'Die Toilette und die Dusche sind hier.', 'The toilet and the shower are here.'),
+          d('Bob', 'Die Wohnung ist schön, Alice!', 'The flat is lovely, Alice!'),
+        ],
+        questions: [
+          q('Wie ist das Zimmer?', 'What is the room like?', ['groß', 'klein', 'alt']),
+          q('Was ist neu?', 'What is new?', ['das Sofa', 'der Balkon', 'das Fenster']),
+          q('Was hat die Wohnung?', 'What does the flat have?', ['einen Balkon', 'einen Garten', 'zwei Bäder']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 5 */
@@ -249,6 +377,19 @@
         n('die', 'Schwester', 'Schwestern', 'sister'),
         n('der', 'Freund', 'Freunde', 'friend'),
         n('die', 'Familie', 'Familien', 'family'),
+        /* more A1 words */
+        n('der', 'Sohn', 'Söhne', 'son', 'Mein Sohn ist zehn.', 'My son is ten.'),
+        n('die', 'Tochter', 'Töchter', 'daughter'),
+        n('die', 'Oma', 'Omas', 'grandma'),
+        n('der', 'Opa', 'Opas', 'grandpa'),
+        n('das', 'Baby', 'Babys', 'baby'),
+        n('die', 'Freundin', 'Freundinnen', '(female) friend; girlfriend', 'Das ist meine Freundin.', 'This is my friend.'),
+        n('der', 'Junge', 'Jungen', 'boy'),
+        n('das', 'Tier', 'Tiere', 'animal', 'Hast du ein Tier?', 'Do you have a pet?'),
+        x('verheiratet', 'married', 'Bist du verheiratet?', 'Are you married?'),
+        x('ledig', 'single (not married)'),
+        x('geschieden', 'divorced'),
+        n('die', 'Person', 'Personen', 'person', 'Wir sind vier Personen.', 'There are four of us.'),
       ],
       sentences: [
         s('Ich bin müde.', 'I am tired.'),
@@ -259,6 +400,23 @@
         s('Er ist mein Bruder.', 'He is my brother.'),
         s('Das ist meine Familie.', 'That is my family.'),
       ],
+      dialog: {
+        title: 'Fotos von der Familie', setting: 'Alice shows Bob photos of her family.',
+        lines: [
+          d('Alice', 'Das ist meine Familie.', 'This is my family.'),
+          d('Bob', 'Wer ist das?', 'Who is that?'),
+          d('Alice', 'Das ist meine Schwester. Sie hat eine Katze.', 'That is my sister. She has a cat.'),
+          d('Bob', 'Und der Mann?', 'And the man?'),
+          d('Alice', 'Er ist mein Bruder. Er ist verheiratet und hat einen Sohn.', 'He is my brother. He is married and has a son.'),
+          d('Bob', 'Und das Baby?', 'And the baby?'),
+          d('Alice', 'Das ist meine Tochter! Sie ist ein Jahr alt.', 'That is my daughter! She is one year old.'),
+        ],
+        questions: [
+          q('Wer hat eine Katze?', 'Who has a cat?', ['die Schwester', 'der Bruder', 'die Tochter']),
+          q('Ist der Bruder verheiratet?', 'Is the brother married?', ['Ja, er ist verheiratet.', 'Nein, er ist ledig.', 'Nein, er ist geschieden.']),
+          q('Wer ist das Baby?', 'Who is the baby?', ['die Tochter von Alice', 'die Schwester von Alice', 'der Sohn von Bob']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 6 */
@@ -301,6 +459,19 @@
         x('verstehen', 'to understand'),
         x('heißen', 'to be called', 'Wie heißt du?', 'What is your name?'),
         x('kosten', 'to cost'),
+        /* more A1 words */
+        x('schreiben', 'to write', 'Ich schreibe eine Nachricht.', 'I am writing a message.'),
+        x('studieren', 'to study (at university)', 'Ich studiere in Berlin.', 'I study in Berlin.'),
+        x('sagen', 'to say'),
+        x('verkaufen', 'to sell'),
+        x('laufen', 'to run; to walk'),
+        x('kennen', 'to know (a person, a place)', 'Kennst du Bob?', 'Do you know Bob?'),
+        x('wissen', 'to know (a fact)', 'Ich weiß es nicht.', 'I don’t know.'),
+        x('lachen', 'to laugh'),
+        x('rauchen', 'to smoke', 'Rauchen Sie?', 'Do you smoke?'),
+        x('öffnen', 'to open', 'Öffnen Sie das Fenster, bitte.', 'Open the window, please.'),
+        x('lieben', 'to love'),
+        x('reisen', 'to travel', 'Ich reise gern.', 'I like travelling.'),
       ],
       sentences: [
         s('Ich lerne Deutsch.', 'I am learning German.'),
@@ -312,6 +483,23 @@
         s('Ich verstehe das nicht.', 'I don’t understand that.'),
         s('Sie liest ein Buch.', 'She is reading a book.'),
       ],
+      dialog: {
+        title: 'Neue Nachbarn', setting: 'Two new neighbours meet in the hallway.',
+        lines: [
+          d('Bob', 'Hallo! Ich bin Bob. Wo wohnst du?', 'Hi! I am Bob. Where do you live?'),
+          d('Alice', 'Ich wohne hier, Nummer sieben. Ich heiße Alice.', 'I live here, number seven. My name is Alice.'),
+          d('Bob', 'Was machst du in Berlin?', 'What do you do in Berlin?'),
+          d('Alice', 'Ich studiere und ich lerne Deutsch. Und du?', 'I study and I am learning German. And you?'),
+          d('Bob', 'Ich arbeite. Ich verkaufe Autos.', 'I work. I sell cars.'),
+          d('Alice', 'Spielst du Fußball?', 'Do you play football?'),
+          d('Bob', 'Nein, ich laufe. Und ich lese viel.', 'No, I run. And I read a lot.'),
+        ],
+        questions: [
+          q('Was macht Alice?', 'What does Alice do?', ['Sie studiert und lernt Deutsch.', 'Sie verkauft Autos.', 'Sie spielt Fußball.']),
+          q('Was verkauft Bob?', 'What does Bob sell?', ['Autos', 'Bücher', 'Käse']),
+          q('Wo wohnt Alice?', 'Where does Alice live?', ['Nummer sieben', 'Nummer zehn', 'Nummer zwei']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 7 */
@@ -339,6 +527,17 @@
         x('jetzt', 'now'), x('morgen', 'tomorrow'), x('immer', 'always'), x('oft', 'often'),
         x('hier', 'here'), x('dort', 'there'), x('auch', 'also; too'), x('sehr', 'very', 'Das ist sehr gut.', 'That is very good.'),
         x('dann', 'then'),
+        /* more A1 words */
+        n('der', 'Montag', 'Montage', 'Monday', 'Am Montag arbeite ich.', 'On Monday I work.'),
+        n('der', 'Dienstag', 'Dienstage', 'Tuesday'),
+        n('der', 'Mittwoch', 'Mittwoche', 'Wednesday'),
+        n('der', 'Donnerstag', 'Donnerstage', 'Thursday'),
+        n('der', 'Freitag', 'Freitage', 'Friday'),
+        n('der', 'Samstag', 'Samstage', 'Saturday', 'Was machst du am Samstag?', 'What are you doing on Saturday?'),
+        n('der', 'Sonntag', 'Sonntage', 'Sunday'),
+        x('manchmal', 'sometimes', 'Manchmal trinke ich Tee.', 'Sometimes I drink tea.'),
+        x('welcher', 'which', 'Welcher Tag ist heute?', 'Which day is it today?'),
+        x('noch einmal', 'once more; again', 'Noch einmal, bitte!', 'Once more, please!'),
       ],
       sentences: [
         s('Heute lerne ich Deutsch.', 'Today I am learning German.', ['Ich lerne heute Deutsch.']),
@@ -350,6 +549,24 @@
         s('Was machst du morgen?', 'What are you doing tomorrow?'),
         s('Wer ist das?', 'Who is that?'),
       ],
+      dialog: {
+        title: 'Am Wochenende', setting: 'Alice asks Bob about his plans for the weekend.',
+        lines: [
+          d('Alice', 'Was machst du am Samstag?', 'What are you doing on Saturday?'),
+          d('Bob', 'Am Samstag spiele ich Fußball. Warum?', 'On Saturday I am playing football. Why?'),
+          d('Alice', 'Wir trinken Kaffee im Café. Kommst du auch?', 'We are having coffee at the café. Are you coming too?'),
+          d('Bob', 'Wann?', 'When?'),
+          d('Alice', 'Am Sonntag um drei.', 'On Sunday at three.'),
+          d('Bob', 'Ja, am Sonntag habe ich Zeit. Wo ist das Café?', 'Yes, I have time on Sunday. Where is the café?'),
+          d('Alice', 'Das Café ist hier in der Stadt.', 'The café is here in town.'),
+          d('Bob', 'Gut, bis Sonntag!', 'Good, see you on Sunday!'),
+        ],
+        questions: [
+          q('Was macht Bob am Samstag?', 'What is Bob doing on Saturday?', ['Er spielt Fußball.', 'Er trinkt Kaffee.', 'Er arbeitet.']),
+          q('Wann trinken sie Kaffee?', 'When are they having coffee?', ['am Sonntag', 'am Samstag', 'am Montag']),
+          q('Um wie viel Uhr?', 'At what time?', ['um drei', 'um zwei', 'um sieben']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 8 */
@@ -389,6 +606,19 @@
         x('bestellen', 'to order'),
         x('bezahlen', 'to pay'),
         x('lecker', 'tasty; delicious'),
+        /* more A1 words */
+        n('der', 'Zucker', '', 'sugar', 'Kaffee mit Zucker, bitte.', 'Coffee with sugar, please.'),
+        n('die', 'Tasse', 'Tassen', 'cup', 'Eine Tasse Tee, bitte.', 'A cup of tea, please.'),
+        n('die', 'Orange', 'Orangen', 'orange (fruit)'),
+        n('die', 'Kartoffel', 'Kartoffeln', 'potato'),
+        n('der', 'Reis', '', 'rice'),
+        n('die', 'Wurst', 'Würste', 'sausage'),
+        n('das', 'Obst', '', 'fruit', 'Ich esse gern Obst.', 'I like eating fruit.'),
+        n('die', 'Banane', 'Bananen', 'banana'),
+        n('die', 'Tomate', 'Tomaten', 'tomato'),
+        n('die', 'Schokolade', 'Schokoladen', 'chocolate'),
+        n('das', 'Abendessen', 'Abendessen', 'dinner; supper', 'Was gibt es zum Abendessen?', 'What is there for dinner?'),
+        n('die', 'Pizza', 'Pizzas', 'pizza', 'Wir essen heute Pizza.', 'We are having pizza today.'),
       ],
       sentences: [
         s('Ich trinke einen Kaffee.', 'I am drinking a coffee.'),
@@ -400,6 +630,23 @@
         s('Hast du einen Hund?', 'Do you have a dog?'),
         s('Der Kuchen ist lecker.', 'The cake is delicious.'),
       ],
+      dialog: {
+        title: 'Im Café', setting: 'Alice and Bob order in a café.',
+        lines: [
+          d('Kellner', 'Guten Tag! Was möchten Sie?', 'Good afternoon! What would you like?'),
+          d('Alice', 'Ich möchte einen Kaffee mit Zucker, bitte.', 'I would like a coffee with sugar, please.'),
+          d('Bob', 'Ich nehme einen Tee und die Suppe.', 'I will have a tea and the soup.'),
+          d('Kellner', 'Möchten Sie auch einen Kuchen?', 'Would you also like a cake?'),
+          d('Alice', 'Nein, danke. Ich esse keinen Kuchen.', 'No, thanks. I do not eat cake.'),
+          d('Bob', 'Die Rechnung, bitte!', 'The bill, please!'),
+          d('Kellner', 'Das macht zwölf Euro.', 'That comes to twelve euros.'),
+        ],
+        questions: [
+          q('Was trinkt Alice?', 'What does Alice drink?', ['einen Kaffee mit Zucker', 'einen Tee', 'einen Saft']),
+          q('Was isst Bob?', 'What does Bob eat?', ['die Suppe', 'einen Kuchen', 'eine Pizza']),
+          q('Was kostet alles?', 'How much is everything?', ['zwölf Euro', 'zwanzig Euro', 'zehn Euro']),
+        ],
+      },
     },
 
     /* ------------------------------------------------------------------ 9 */
@@ -429,6 +676,18 @@
         x('nie', 'never'),
         x('doch', 'yes (contradicting a “no”)'),
         n('das', 'Problem', 'Probleme', 'problem'),
+        /* more A1 words */
+        x('dunkel', 'dark', 'Im Winter ist es früh dunkel.', 'In winter it gets dark early.'),
+        x('rot', 'red'),
+        x('blau', 'blue', 'Der Himmel ist blau.', 'The sky is blue.'),
+        x('grün', 'green'),
+        x('gelb', 'yellow'),
+        x('schwarz', 'black'),
+        x('weiß', 'white'),
+        x('braun', 'brown'),
+        x('grau', 'grey'),
+        x('lang', 'long', 'Der Film ist lang.', 'The film is long.'),
+        x('kurz', 'short'),
       ],
       sentences: [
         s('Ich habe kein Auto.', 'I don’t have a car.'),
@@ -439,6 +698,23 @@
         s('Ich habe keine Zeit.', 'I have no time.'),
         s('Deutsch ist nicht schwer.', 'German is not difficult.'),
       ],
+      dialog: {
+        title: 'Eine neue Tasche', setting: 'Alice is looking for a bag in a shop.',
+        lines: [
+          d('Alice', 'Guten Tag! Ich brauche eine Tasche.', 'Hello! I need a bag.'),
+          d('Verkäufer', 'Die Tasche hier ist schön. Sie ist rot.', 'This bag is nice. It is red.'),
+          d('Alice', 'Ja, schön. Haben Sie die Tasche auch in Blau?', 'Yes, nice. Do you have the bag in blue too?'),
+          d('Verkäufer', 'Nein, nicht in Blau. Aber in Schwarz.', 'No, not in blue. But in black.'),
+          d('Alice', 'Und was kostet die Tasche in Schwarz?', 'And how much is the bag in black?'),
+          d('Verkäufer', 'Zwanzig Euro. Das ist nicht teuer.', 'Twenty euros. That is not expensive.'),
+          d('Alice', 'Gut, ich nehme sie.', 'Good, I will take it.'),
+        ],
+        questions: [
+          q('Welche Farbe hat die erste Tasche?', 'What colour is the first bag?', ['rot', 'blau', 'schwarz']),
+          q('Gibt es die Tasche in Blau?', 'Is the bag available in blue?', ['Nein.', 'Ja.', 'Ja, aber sie ist teuer.']),
+          q('Was kostet die Tasche in Schwarz?', 'How much is the bag in black?', ['zwanzig Euro', 'zwölf Euro', 'dreißig Euro']),
+        ],
+      },
     },
 
     /* ----------------------------------------------------------------- 10 */
@@ -485,6 +761,18 @@
         x('allein', 'alone'),
         x('mehr', 'more'),
         n('die', 'Hilfe', '', 'help'),
+        /* more A1 words */
+        x('mögen', 'to like', 'Ich mag Kaffee.', 'I like coffee.'),
+        n('das', 'Theater', 'Theater', 'theatre'),
+        n('das', 'Schwimmbad', 'Schwimmbäder', 'swimming pool', 'Wir gehen ins Schwimmbad.', 'We are going to the swimming pool.'),
+        n('der', 'Fußball', 'Fußbälle', 'football'),
+        n('das', 'Konzert', 'Konzerte', 'concert'),
+        x('singen', 'to sing'),
+        n('die', 'Gitarre', 'Gitarren', 'guitar', 'Kannst du Gitarre spielen?', 'Can you play the guitar?'),
+        x('toll', 'great; brilliant', 'Das ist toll!', 'That is great!'),
+        x('natürlich', 'of course', 'Natürlich kannst du kommen.', 'Of course you can come.'),
+        x('frei', 'free (not busy)', 'Bist du heute frei?', 'Are you free today?'),
+        x('spazieren gehen', 'to go for a walk'),
       ],
       sentences: [
         s('Ich kann Deutsch sprechen.', 'I can speak German.'),
@@ -496,6 +784,23 @@
         s('Ich schwimme gern.', 'I like swimming.'),
         s('Ich möchte zu Hause bleiben.', 'I would like to stay at home.'),
       ],
+      dialog: {
+        title: 'Heute Abend', setting: 'Bob calls Alice to make plans.',
+        lines: [
+          d('Bob', 'Hallo, Alice! Kannst du heute Abend kommen? Wir wollen tanzen.', 'Hi, Alice! Can you come tonight? We want to go dancing.'),
+          d('Alice', 'Heute kann ich nicht. Ich muss arbeiten.', 'I cannot today. I have to work.'),
+          d('Bob', 'Und morgen? Wir können ins Schwimmbad gehen.', 'And tomorrow? We can go to the swimming pool.'),
+          d('Alice', 'Ja, gern! Wann?', 'Yes, I would like that! When?'),
+          d('Bob', 'Um zehn Uhr.', 'At ten o’clock.'),
+          d('Alice', 'Darf meine Schwester auch kommen?', 'May my sister come too?'),
+          d('Bob', 'Natürlich!', 'Of course!'),
+        ],
+        questions: [
+          q('Was wollen sie heute Abend machen?', 'What do they want to do tonight?', ['tanzen', 'schwimmen', 'kochen']),
+          q('Warum kann Alice heute nicht?', 'Why can Alice not come today?', ['Sie muss arbeiten.', 'Sie ist müde.', 'Sie will schlafen.']),
+          q('Wohin gehen sie morgen?', 'Where are they going tomorrow?', ['ins Schwimmbad', 'ins Theater', 'ins Restaurant']),
+        ],
+      },
     },
 
     /* ----------------------------------------------------------------- 11 */
@@ -538,6 +843,19 @@
         x('von', 'from; of'),
         x('weit', 'far', 'Ist es weit?', 'Is it far?'),
         x('in der Nähe', 'nearby', 'Ist hier eine Apotheke in der Nähe?', 'Is there a pharmacy nearby?'),
+        /* more A1 words */
+        n('die', 'Bank', 'Banken', 'bank'),
+        n('die', 'Post', '', 'post office'),
+        n('das', 'Krankenhaus', 'Krankenhäuser', 'hospital'),
+        n('die', 'Straßenbahn', 'Straßenbahnen', 'tram'),
+        n('das', 'Hotel', 'Hotels', 'hotel'),
+        n('der', 'Markt', 'Märkte', 'market', 'Samstags gehe ich auf den Markt.', 'On Saturdays I go to the market.'),
+        n('die', 'Ampel', 'Ampeln', 'traffic light', 'Gehen Sie bis zur Ampel.', 'Go as far as the traffic light.'),
+        n('das', 'Taxi', 'Taxis', 'taxi'),
+        n('die', 'Ecke', 'Ecken', 'corner'),
+        n('der', 'Park', 'Parks', 'park'),
+        n('der', 'Weg', 'Wege', 'way; path'),
+        n('die', 'Bäckerei', 'Bäckereien', 'bakery', 'Die Bäckerei ist an der Ecke.', 'The bakery is on the corner.'),
       ],
       sentences: [
         s('Ich fahre mit dem Bus.', 'I go by bus.'),
@@ -549,6 +867,24 @@
         s('Gehen Sie geradeaus und dann links.', 'Go straight ahead and then left.'),
         s('Ich bin zu Hause.', 'I am at home.'),
       ],
+      dialog: {
+        title: 'Wo ist der Bahnhof?', setting: 'Alice asks a passer-by for the way.',
+        lines: [
+          d('Alice', 'Entschuldigung, wo ist der Bahnhof?', 'Excuse me, where is the train station?'),
+          d('Passant', 'Gehen Sie geradeaus bis zur Ampel und dann links.', 'Go straight on to the traffic light and then left.'),
+          d('Alice', 'Ist das weit?', 'Is that far?'),
+          d('Passant', 'Nein, der Bahnhof ist in der Nähe.', 'No, the station is nearby.'),
+          d('Alice', 'Und wo ist hier eine Bäckerei?', 'And where is there a bakery here?'),
+          d('Passant', 'Die Bäckerei ist an der Ecke, rechts.', 'The bakery is on the corner, on the right.'),
+          d('Alice', 'Danke schön!', 'Thank you very much!'),
+          d('Passant', 'Bitte schön!', 'You are welcome!'),
+        ],
+        questions: [
+          q('Wie kommt Alice zum Bahnhof?', 'How does Alice get to the station?', ['geradeaus bis zur Ampel, dann links', 'geradeaus, dann rechts', 'links, dann geradeaus']),
+          q('Ist der Bahnhof weit?', 'Is the station far?', ['Nein, er ist in der Nähe.', 'Ja, er ist weit.', 'Ja, sie muss mit dem Bus fahren.']),
+          q('Wo ist die Bäckerei?', 'Where is the bakery?', ['an der Ecke, rechts', 'am Bahnhof', 'bei der Ampel, links']),
+        ],
+      },
     },
 
     /* ----------------------------------------------------------------- 12 */
@@ -592,6 +928,19 @@
         x('um', 'at (clock time)', 'Um neun Uhr.', 'At nine o’clock.'),
         x('halb', 'half'),
         n('das', 'Viertel', 'Viertel', 'quarter'),
+        /* more A1 words */
+        n('der', 'Frühling', 'Frühlinge', 'spring'),
+        n('der', 'Sommer', 'Sommer', 'summer', 'Im Sommer ist es heiß.', 'In summer it is hot.'),
+        n('der', 'Herbst', 'Herbste', 'autumn'),
+        n('der', 'Winter', 'Winter', 'winter'),
+        n('der', 'Mittag', 'Mittage', 'midday; noon'),
+        n('der', 'Nachmittag', 'Nachmittage', 'afternoon', 'Am Nachmittag gehe ich spazieren.', 'In the afternoon I go for a walk.'),
+        x('morgens', 'in the mornings', 'Morgens trinke ich Kaffee.', 'In the mornings I drink coffee.'),
+        x('abends', 'in the evenings'),
+        x('mitkommen', 'to come along', 'Kommst du mit?', 'Are you coming along?'),
+        x('zumachen', 'to close', 'Mach bitte die Tür zu.', 'Please close the door.'),
+        x('ausgehen', 'to go out'),
+        x('aufhören', 'to stop'),
       ],
       sentences: [
         s('Wie spät ist es?', 'What time is it?'),
@@ -602,6 +951,24 @@
         s('Am Wochenende kaufe ich ein.', 'At the weekend I go shopping.', ['Ich kaufe am Wochenende ein.']),
         s('Es ist halb drei.', 'It is half past two.'),
       ],
+      dialog: {
+        title: 'Mein Tag', setting: 'Alice and Bob compare their daily routines.',
+        lines: [
+          d('Bob', 'Wann stehst du auf?', 'When do you get up?'),
+          d('Alice', 'Ich stehe um sechs Uhr auf. Morgens trinke ich Kaffee.', 'I get up at six. In the mornings I drink coffee.'),
+          d('Bob', 'Sehr früh! Ich stehe um halb neun auf.', 'Very early! I get up at half past eight.'),
+          d('Alice', 'Und wann fängt deine Arbeit an?', 'And when does your work start?'),
+          d('Bob', 'Um zehn Uhr. Und am Nachmittag habe ich frei.', 'At ten. And in the afternoon I am free.'),
+          d('Alice', 'Ich arbeite bis fünf. Abends sehe ich fern.', 'I work until five. In the evenings I watch TV.'),
+          d('Bob', 'Und am Wochenende?', 'And at the weekend?'),
+          d('Alice', 'Am Wochenende kaufe ich ein und gehe aus.', 'At the weekend I go shopping and go out.'),
+        ],
+        questions: [
+          q('Wann steht Alice auf?', 'When does Alice get up?', ['um sechs Uhr', 'um halb neun', 'um zehn Uhr']),
+          q('Wann fängt die Arbeit von Bob an?', 'When does Bob’s work start?', ['um zehn Uhr', 'um sechs Uhr', 'um fünf Uhr']),
+          q('Was macht Alice abends?', 'What does Alice do in the evenings?', ['Sie sieht fern.', 'Sie kauft ein.', 'Sie arbeitet.']),
+        ],
+      },
     },
 
     /* ----------------------------------------------------------------- 13 */
@@ -645,6 +1012,19 @@
         n('der', 'Urlaub', 'Urlaube', 'holiday; vacation'),
         n('das', 'Wetter', '', 'weather'),
         n('die', 'Reise', 'Reisen', 'trip; journey'),
+        /* more A1 words */
+        x('geschlafen', 'slept (from schlafen)'),
+        x('gelesen', 'read, past (from lesen)', 'Ich habe ein Buch gelesen.', 'I read a book.'),
+        x('geschrieben', 'written (from schreiben)'),
+        x('gesprochen', 'spoken (from sprechen)'),
+        x('gefunden', 'found (from finden)'),
+        x('angerufen', 'called (from anrufen)', 'Hast du Bob angerufen?', 'Did you call Bob?'),
+        x('aufgestanden', 'got up (from aufstehen)', 'Ich bin früh aufgestanden.', 'I got up early.'),
+        x('eingekauft', 'shopped (from einkaufen)'),
+        x('gekocht', 'cooked (from kochen)'),
+        x('gearbeitet', 'worked (from arbeiten)'),
+        x('vorgestern', 'the day before yesterday'),
+        x('letztes Jahr', 'last year', 'Letztes Jahr war ich in Spanien.', 'Last year I was in Spain.'),
       ],
       sentences: [
         s('Ich habe Deutsch gelernt.', 'I learned German.'),
@@ -656,6 +1036,23 @@
         s('Gestern war ich müde.', 'Yesterday I was tired.', ['Ich war gestern müde.']),
         s('Das Wetter war schön.', 'The weather was nice.'),
       ],
+      dialog: {
+        title: 'Das Wochenende', setting: 'On Monday, Alice asks Bob about his weekend.',
+        lines: [
+          d('Alice', 'Was hast du am Wochenende gemacht?', 'What did you do at the weekend?'),
+          d('Bob', 'Ich bin nach Hamburg gefahren.', 'I went to Hamburg.'),
+          d('Alice', 'Schön! Wie war das Wetter?', 'Nice! How was the weather?'),
+          d('Bob', 'Das Wetter war gut. Ich habe Fisch gegessen und viel gesehen.', 'The weather was good. I ate fish and saw a lot.'),
+          d('Alice', 'Und am Sonntag?', 'And on Sunday?'),
+          d('Bob', 'Am Sonntag war ich müde. Ich habe viel geschlafen. Und du?', 'On Sunday I was tired. I slept a lot. And you?'),
+          d('Alice', 'Ich bin zu Hause geblieben und habe ein Buch gelesen.', 'I stayed at home and read a book.'),
+        ],
+        questions: [
+          q('Wohin ist Bob gefahren?', 'Where did Bob go?', ['nach Hamburg', 'nach Berlin', 'nach Hause']),
+          q('Was hat Bob gegessen?', 'What did Bob eat?', ['Fisch', 'Pizza', 'Kuchen']),
+          q('Was hat Alice gemacht?', 'What did Alice do?', ['Sie hat ein Buch gelesen.', 'Sie ist nach Hamburg gefahren.', 'Sie hat viel gearbeitet.']),
+        ],
+      },
     },
   ];
 
@@ -807,15 +1204,56 @@
     weeks: [
       { units: ['u1', 'u2', 'u3'],
         check: { id: 'cp1', title: 'Week 1 checkpoint',
+          write: { type: 'form', title: 'Anmeldung zum Deutschkurs',
+            intro: 'Bob wants to join a German course. Read his message, then fill in the form for him.',
+            text: 'Hallo! Mein Name ist Bob. Ich komme aus Kanada und ich bin dreißig Jahre alt. Ich spreche Englisch und Deutsch. Meine Telefonnummer ist null eins sieben sechs, zwei drei vier, fünf sechs sieben. Bis bald!',
+            fields: [
+              f('Vorname', 'first name', 'Bob', { all: ['bob'] }),
+              f('Land', 'country', 'Kanada', { all: ['kanada'] }),
+              f('Alter', 'age', '30', { all: ['dreissig'], digits: ['30'] }),
+              f('Telefonnummer', 'phone number', '0176 234 567', { digits: ['0176234567'] }),
+              f('Sprachen', 'languages', 'Englisch, Deutsch', { all: ['englisch', 'deutsch'] }),
+            ] },
           speak: 'Introduce yourself out loud: greet, say your name, where you come from and how old you are, then ask the same back. {{Guten Tag!}} {{Woher kommst du?}} {{Wie alt bist du?}}' } },
       { units: ['u4', 'u5', 'u6'],
         check: { id: 'cp2', title: 'Week 2 checkpoint',
+          write: { type: 'message', title: 'Eine Nachricht an Alice', min: 25,
+            intro: 'You have a new flat. Write your friend Alice a short message of about 30 words.',
+            points: [
+              p('Say where you live now.', ['wohne', 'wohnung']),
+              p('Say what the flat has: rooms, a balcony, a garden …', ['zimmer', 'balkon', 'garten', 'kueche', 'bad', 'dusche', 'sofa', 'fenster']),
+              p('Invite Alice to visit.', ['kommst', 'besuch', 'zeit', 'einlad']),
+            ],
+            greet: ['liebe', 'lieber', 'hallo', 'hi'],
+            close: ['viele gruesse', 'liebe gruesse', 'bis bald', 'tschuess', 'gruss'],
+            model: 'Liebe Alice, ich habe eine neue Wohnung! Ich wohne jetzt in Berlin. Die Wohnung hat zwei Zimmer und einen Balkon. Hast du am Samstag Zeit? Komm doch zu mir! Viele Grüße, Bob' },
           speak: 'Name five things around you with der, die or das, then say who is in your family and what they do. {{Das ist ein Tisch.}} {{Ich habe eine Schwester.}} {{Sie wohnt in Berlin.}}' } },
       { units: ['u7', 'u8', 'u9'],
         check: { id: 'cp3', title: 'Week 3 checkpoint',
+          write: { type: 'form', title: 'Tisch reservieren im Café Sonne',
+            intro: 'Alice wants to book a table at Café Sonne. Read her message to the café, then fill in the booking form.',
+            text: 'Guten Tag! Hier ist Alice. Ich möchte am Freitag um drei Uhr mit drei Freunden zu Ihnen kommen. Wir trinken Kaffee und Tee, und wir möchten einen Kuchen essen. Meine Telefonnummer ist null drei null, eins zwei drei, vier fünf sechs. Danke!',
+            fields: [
+              f('Name', 'name', 'Alice', { all: ['alice'] }),
+              f('Tag', 'day', 'Freitag', { all: ['freitag'] }),
+              f('Uhrzeit', 'time', '15 Uhr', { all: ['drei'], digits: ['3', '15', '300', '1500'] }),
+              f('Personen', 'number of people', '4', { all: ['vier'], digits: ['4'] }),
+              f('Getränke', 'drinks', 'Kaffee, Tee', { all: ['kaffee', 'tee'] }),
+              f('Essen', 'food', 'Kuchen', { all: ['kuchen'] }),
+            ] },
           speak: 'Play a café visit: ask for the menu, order a drink and a meal, say what you do not want, and ask for the bill. {{Die Speisekarte, bitte.}} {{Ich möchte einen Kaffee.}} {{Ich nehme keinen Kuchen.}} {{Die Rechnung, bitte!}}' } },
       { units: ['u10', 'u11', 'u12', 'u13'],
         check: { id: 'cp4', title: 'Final A1 test',
+          write: { type: 'message', title: 'Ich kann nicht kommen', min: 25,
+            intro: 'You cannot come to your German course on Monday. Write to your teacher Bob, about 30 words.',
+            points: [
+              p('Say sorry.', ['leider', 'tut mir leid', 'entschuldig']),
+              p('Say why you cannot come.', ['krank', 'arbeiten', 'arzt', 'muss', 'weil']),
+              p('Ask about the homework or a new date.', ['hausaufgabe', 'wann', 'neuen termin', 'dienstag', 'mittwoch', 'donnerstag', 'freitag']),
+            ],
+            greet: ['lieber', 'liebe', 'hallo', 'sehr geehrte', 'guten tag'],
+            close: ['viele gruesse', 'liebe gruesse', 'freundlichen gruessen', 'bis bald', 'gruss'],
+            model: 'Lieber Bob, leider kann ich am Montag nicht zum Kurs kommen. Ich bin krank und muss zum Arzt gehen. Was sind die Hausaufgaben? Kann ich am Mittwoch kommen? Viele Grüße, Alice' },
           speak: 'Talk for one minute without stopping: introduce yourself, describe a normal day with times, say what you can and must do, and tell what you did yesterday. {{Ich stehe um sieben Uhr auf.}} {{Ich muss heute arbeiten.}} {{Gestern habe ich Deutsch gelernt.}}' } },
     ],
   };
@@ -833,7 +1271,7 @@
   UNITS.forEach((u) => { u.level = 'a1'; });
   SHEETS.forEach((sh) => { sh.level = 'a1'; });
 
-  root.DE_BUILD = { n, x, s, c, g, tbl };
+  root.DE_BUILD = { n, x, s, c, g, tbl, d, q };
   root.DE_DATA = {
     LEVELS, UNITS, VERBS, SHEETS, METHOD, RESOURCES, PLAN,
     addUnits(level, units) { units.forEach((u) => { u.level = level; UNITS.push(u); }); },

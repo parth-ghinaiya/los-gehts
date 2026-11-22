@@ -111,6 +111,12 @@ check('plan merge: server receives the combined plan', JSON.stringify(remote.pla
 await server(cookie, 'PUT', { cards: {}, xp: 0, plan: pl({ id: 900, start: 0, setAt: 900 }) });
 d = await device({ [KEY]: JSON.stringify(local) }, { cookie });
 check('plan merge: a newer plan (here: stopped) replaces the old one', d.local().plan.id === 900 && d.local().plan.start === 0 && Object.keys(d.local().plan.done).length === 0, d.local().plan);
+await server(cookie, 'PUT', { cards: {}, plan: pl({ id: 900, start: 0, setAt: 900 }), passed: { 'dialog:u1': 20005, 'write:cp1': 20009 } });
+d = await device({ [KEY]: JSON.stringify({ cards: {}, plan: pl({ id: 900, start: 0, setAt: 900 }), passed: { 'dialog:u1': 20003, 'dialog:u2': 20004 } }) }, { cookie });
+check('passed merge: union, earliest day kept', JSON.stringify(d.local().passed) === JSON.stringify({ 'dialog:u1': 20003, 'dialog:u2': 20004, 'write:cp1': 20009 }), d.local().passed);
+await server(cookie, 'PUT', { cards: {}, xp: 1, passed: { 'dialog:u1': 'x', 'BAD': 3, 'write:cp1': -4, 'note:u1': 5 } });
+d = await device({}, { cookie });
+check('hydrate: hostile passed values dropped', Object.keys(d.local().passed).length === 0, d.local().passed);
 await server(cookie, 'PUT', { cards: {}, plan: { id: 'x', start: -5, pace: 7, ticks: { 'BAD KEY': { speak: 1 }, u1a: 'str' }, done: { u1a: 'soon' }, checks: { cp1: 500 } } });
 d = await device({}, { cookie });
 const hp = d.local().plan;

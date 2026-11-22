@@ -124,11 +124,11 @@ try {
   check('round: progress pushed at once on finishing (not after the idle delay)', !!put && put.t - doneAt < 1000, put && put.t - doneAt);
   await shot('4-finished');
   const serverXp = await js('fetch("/api/progress").then((r) => r.json()).then((j) => j.data.xp)');
-  const localXp = await js('JSON.parse(localStorage.getItem("los-gehts-v1")).xp');
+  let localXp = await js('JSON.parse(localStorage.getItem("los-gehts-v1")).xp');
   check('round: server holds exactly what the device holds', serverXp === localXp && localXp > 0, { serverXp, localXp });
 
   /* ---------- other views under the content security policy ---------- */
-  for (const h of ['#/', '#/unit/u4', '#/unit/a2u7', '#/unit/b1u11', '#/review', '#/drills', '#/drills/gender', '#/drills/numbers', '#/drills/verbs', '#/grammar', '#/grammar/a2', '#/grammar/b1', '#/guide', '#/plan']) {
+  for (const h of ['#/', '#/unit/u4', '#/unit/a2u7', '#/unit/b1u11', '#/review', '#/drills', '#/drills/gender', '#/drills/numbers', '#/drills/verbs', '#/grammar', '#/grammar/a2', '#/grammar/b1', '#/guide', '#/plan', '#/dialog/u8', '#/write/cp2', '#/write/cp3']) {
     await js(`location.hash = ${JSON.stringify(h)}; 1`);
     await sleep(250);
   }
@@ -170,7 +170,24 @@ try {
   check('plan: home lists today\'s tasks', (await js('document.querySelectorAll(".hero .tasks li").length')) >= 3);
   check('plan: reaches the server', await until('fetch("/api/progress").then((r) => r.json()).then((j) => !!(j.data.plan && j.data.plan.start > 0))', 6000));
   await js('location.hash = "#/unit/u1/a"; 1'); await sleep(300);
-  check('plan: half-unit page lists its 9 words', (await js('document.querySelectorAll(".word").length')) === 9);
+  check('plan: half-unit page lists its 15 words', (await js('document.querySelectorAll(".word").length')) === 15);
+
+  /* ---------- dialogue and writing ---------- */
+  await js('location.hash = "#/dialog/u1"; 1'); await sleep(300);
+  check('dialog: lines and three questions render', (await js('document.querySelectorAll(".dl-line").length')) >= 5 && (await js('document.querySelectorAll(".dl-q").length')) === 3);
+  for (let qi = 0; qi < 3; qi++) {
+    for (let k = 0; k < 3 && !(await js(`!!document.querySelectorAll(".dl-q")[${qi}].querySelector(".opt.ok")`)); k++) {
+      await js(`[...document.querySelectorAll(".dl-q")[${qi}].querySelectorAll(".opt")].find((b) => !b.disabled).click(); 1`);
+    }
+  }
+  check('dialog: answering all marks it passed', await js('!document.getElementById("dlDone").hidden && JSON.parse(localStorage.getItem("los-gehts-v1")).passed["dialog:u1"] > 0'));
+  await js('location.hash = "#/write/cp1"; 1'); await sleep(300);
+  await js('DE_DATA.PLAN.weeks[0].check.write.fields.forEach((f, i) => { document.getElementById("f" + i).value = f.show; }); document.getElementById("wcheck").click(); 1');
+  check('writing: a correct form passes', await js('JSON.parse(localStorage.getItem("los-gehts-v1")).passed["write:cp1"] > 0'));
+  await js('location.hash = "#/write/cp4"; 1'); await sleep(300);
+  await js('(() => { const m = document.getElementById("msg"); m.value = DE_DATA.PLAN.weeks[3].check.write.model; document.getElementById("wcheck").click(); })(); 1');
+  check('writing: the model message passes', await js('JSON.parse(localStorage.getItem("los-gehts-v1")).passed["write:cp4"] > 0'));
+  check('writing: reaches the server', await until('fetch("/api/progress").then((r) => r.json()).then((j) => !!(j.data.passed && j.data.passed["write:cp4"]))', 6000));
   await js('location.hash = "#/guide"; 1'); await sleep(300);
 
   /* ---------- failure indicator ---------- */
@@ -192,6 +209,7 @@ try {
 
   /* ---------- sign out ---------- */
   await js('location.hash = "#/guide"; 1'); await sleep(300);
+  localXp = await js('JSON.parse(localStorage.getItem("los-gehts-v1")).xp');   // later steps earned more
   await js('document.getElementById("signOut").click(); 1');
   await until('location.pathname === "/login"');
   check('sign out: back at the sign-in page', (await where()) === '/login', await where());

@@ -35,7 +35,7 @@ const tokens = (t) => t.replace(/[.,!?;:]/g, '').split(/\s+/).filter(Boolean);
 /* Only the placeholders Alice and Bob may appear as names (project rule). */
 const NAMES = /\b(Anna|Anne|Max|Peter|Petra|Maria|Marie|Thomas|Lukas|Lucas|Paul|Paula|Lena|Lisa|Hans|Julia|Jan|Tim|Tom|Sarah|Sara|Laura|Felix|Jonas|Leon|Emma|Mia|Ben|Nico|Klaus|Karl|Monika|Sabine|Stefan|Stephan|Michael|Martin|Markus|Andreas|Daniel|David|Eva|Nina|Tina|Sophie|Sofia|Hanna|Hannah|Müller|Schmidt|Schneider|Fischer|Weber|Meyer|Meier|Wagner|Becker|Schulz|Hoffmann|Bauer|Koch|Richter|Klein|Wolf|Neumann|Schwarz|Zimmermann|Braun|Krüger|Hofmann|Lange|Schmitt|Werner|Krause|Lehmann|Schmid|Schulze|Maier|Köhler|Herrmann|König|Walter|Mayer|Huber|Kaiser|Fuchs|Peters|Lang|Scholz|Möller|Weiß|Jung|Hahn|Schubert|Vogel|Friedrich|Keller|Günther|Frank|Berger|Winkler|Roth|Beck|Lorenz|Baumann|Franke|Albrecht|Schuster|Simon|Ludwig|Böhm|Winter|Kraus|Martin|Schumacher|Krämer|Vogt|Stein|Jäger|Otto|Sommer|Groß|Seidel|Heinrich|Brandt|Haas|Schreiber|Graf|Schulte|Dietrich|Ziegler|Kuhn|Kühn|Pohl|Engel|Horn|Busch|Bergmann|Thomas|Voigt|Sauer|Arnold|Wolff|Pfeiffer)\b/;
 /* Common words that happen to be on the list above. */
-const NOT_A_NAME = /\b(der Koch|die Köchin|Koch |ein Koch|der Bauer|der Wolf|der König|der Kaiser|der Vogel|der Winter|der Sommer|der Stein|der Engel|der Graf|der Jäger|der Fuchs|der Hahn|das Horn|der Busch|klein|Klein|lang|Lang|lange|Lange|jung|Jung|weiß|Weiß|braun|Braun|schwarz|Schwarz|groß|Groß|sauer|Sauer|frank|Frank|der Richter|der Schneider|der Fischer|der Weber|der Wagner|der Becker|der Müller|der Schuster|der Schreiber|der Ziegler|der Zimmermann|der Bergmann|der Krämer|der Keller|im Keller|den Keller|dem Keller|Keller |der Roth|max\.|Jan\.)\b/g;
+const NOT_A_NAME = /\b(der Koch|die Köchin|Koch |ein Koch|der Bauer|der Wolf|der König|der Kaiser|der Vogel|der Winter|der Sommer|im Winter|Im Winter|im Sommer|Im Sommer|der Stein|der Engel|der Graf|der Jäger|der Fuchs|der Hahn|das Horn|der Busch|klein|Klein|lang|Lang|lange|Lange|jung|Jung|weiß|Weiß|braun|Braun|schwarz|Schwarz|groß|Groß|sauer|Sauer|frank|Frank|der Richter|der Schneider|der Fischer|der Weber|der Wagner|der Becker|der Müller|der Schuster|der Schreiber|der Ziegler|der Zimmermann|der Bergmann|der Krämer|der Keller|im Keller|den Keller|dem Keller|Keller |der Roth|max\.|Jan\.)\b/g;
 const hasName = (text) => NAMES.test(String(text).replace(NOT_A_NAME, ' '));
 
 const ids = new Set();
@@ -89,7 +89,7 @@ for (const u of D.UNITS) {
     if (extra && x.en.split(/\s+/).length > 7) warn(label, 'gloss is long for a quiz option: "' + x.en + '"');
     if (seenDe.has(full) && seenDe.get(full) !== u.id) (extra ? err : warn)(label, 'already taught in unit ' + seenDe.get(full));
     else seenDe.set(full, u.id);
-    if (hasName(x.de + ' ' + (x.ex || ''))) err(label, 'uses a personal name; only Alice and Bob are allowed');
+    if (hasName(full + ' ' + (x.ex || ''))) err(label, 'uses a personal name; only Alice and Bob are allowed');
   });
   if (extra && withExample < Math.ceil(words.length * 0.6)) err(w, 'at least 60% of words need an example sentence, has ' + withExample + ' of ' + words.length);
 
@@ -151,6 +151,60 @@ for (const sh of D.SHEETS) {
     });
     Object.keys(P.drills || {}).forEach((id) => { if (!planUnits.includes(id)) err('plan', 'drill unlock unit ' + id + ' is not in the plan'); });
     if (!(P.pass > 0 && P.pass <= 100)) err('plan', 'pass mark must be 1-100');
+
+    /* every plan unit has a dialogue: read, listen, answer */
+    for (const id of planUnits) {
+      const u = D.UNITS.find((x) => x.id === id);
+      const dl = u && u.dialog;
+      const where = id + ' dialog';
+      if (!dl) { err(where, 'missing (every plan unit needs one)'); continue; }
+      if (!str(dl.title) || !str(dl.setting)) err(where, 'needs title and setting');
+      if (!Array.isArray(dl.lines) || dl.lines.length < 5 || dl.lines.length > 10) err(where, 'needs 5–10 lines');
+      (dl.lines || []).forEach((l, i) => {
+        if (!str(l.who) || !str(l.de) || !str(l.en)) err(where, 'line ' + (i + 1) + ' needs who, de and en');
+        else if (hasName(l.who + ' ' + l.de)) err(where, 'line ' + (i + 1) + ' uses a personal name; only Alice and Bob are allowed');
+      });
+      if (new Set((dl.lines || []).map((l) => l.who)).size < 2) err(where, 'needs at least two speakers');
+      if (!Array.isArray(dl.questions) || dl.questions.length !== 3) err(where, 'needs exactly 3 questions');
+      (dl.questions || []).forEach((x, i) => {
+        if (!str(x.de) || !str(x.en)) err(where, 'question ' + (i + 1) + ' needs de and en');
+        if (!Array.isArray(x.opts) || x.opts.length !== 3 || !x.opts.every(str)) err(where, 'question ' + (i + 1) + ' needs 3 options');
+        else if (new Set(x.opts.map((o) => norm(o))).size !== 3) err(where, 'question ' + (i + 1) + ' options must differ');
+        if (hasName(x.de + ' ' + (x.opts || []).join(' '))) err(where, 'question ' + (i + 1) + ' uses a personal name');
+      });
+    }
+
+    /* writing tasks: the shown answers and the model message must pass their own checks */
+    const { checkField, checkMessage } = ctx.DE_UTIL;
+    P.weeks.forEach((wk, i) => {
+      const t = wk.check && wk.check.write;
+      const where = 'plan week ' + (i + 1) + ' writing';
+      if (!t) { err(where, 'missing'); return; }
+      if (!str(t.title) || !str(t.intro)) err(where, 'needs title and intro');
+      const isKey = (k) => str(k) && k === norm(k);
+      if (t.type === 'form') {
+        if (!str(t.text)) err(where, 'needs a text to read');
+        else if (hasName(t.text)) err(where, 'text uses a personal name');
+        if (!Array.isArray(t.fields) || t.fields.length < 4) err(where, 'needs at least 4 fields');
+        (t.fields || []).forEach((fl) => {
+          if (!str(fl.label) || !str(fl.en) || !str(fl.show)) err(where, 'field needs label, en and show');
+          if (!fl.all && !fl.digits) err(where, 'field "' + fl.label + '" needs all or digits');
+          if (fl.all && !fl.all.every(isKey)) err(where, 'field "' + fl.label + '": words in all must be in normalised form');
+          if (str(fl.show) && !checkField(fl.show, fl)) err(where, 'field "' + fl.label + '": its own answer "' + fl.show + '" does not pass');
+        });
+      } else if (t.type === 'message') {
+        if (!Array.isArray(t.points) || t.points.length !== 3) err(where, 'needs exactly 3 points');
+        (t.points || []).forEach((pt) => { if (!str(pt.en) || !Array.isArray(pt.keys) || !pt.keys.length || !pt.keys.every(isKey)) err(where, 'point needs en and normalised keys'); });
+        for (const k of ['greet', 'close']) if (!Array.isArray(t[k]) || !t[k].every(isKey)) err(where, k + ' needs normalised keys');
+        if (!(t.min > 0)) err(where, 'needs a minimum word count');
+        if (!str(t.model)) err(where, 'needs a model answer');
+        else {
+          const r = checkMessage(t.model, t);
+          if (!r.ok) err(where, 'model answer does not pass its own check: ' + JSON.stringify(r));
+          if (hasName(t.model)) err(where, 'model uses a personal name');
+        }
+      } else err(where, 'type must be form or message');
+    });
   }
 }
 

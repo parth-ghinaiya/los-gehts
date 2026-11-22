@@ -97,8 +97,8 @@ npx wrangler dev
 
 | Area | What it does |
 | --- | --- |
-| **Learn** | Three levels: A1 (13 units), A2 (12) and B1 (12). Each unit has a few short key ideas, about 20 words with audio, example sentences, then a practice round. Level cards show a progress ring; every unit and every word shows how far along it is. |
-| **Month plan** | A1 as one step a day: each unit over two days, a checkpoint quiz (pass at 80%) and a speaking task at the end of every week, and a final test. Paces of 30, 45 or 60 days. Tasks tick themselves off; missed days never reset it. |
+| **Learn** | Three levels: A1 (13 units, about 30 words each), A2 (12) and B1 (12, about 20 words each). Each unit has a few short key ideas, words with audio, example sentences, then a practice round. Every A1 unit also has a short dialogue to listen to and read, with three questions. Level cards show a progress ring; every unit and every word shows how far along it is. |
+| **Month plan** | A1 as one step a day: each unit over two days, a checkpoint quiz (pass at 80%), a speaking task and a writing task at the end of every week, and a final test. The writing tasks follow the A1 exams: fill in a form from a short text, or write a short message covering three points. Paces of 30, 45 or 60 days. Tasks tick themselves off; missed days never reset it. |
 | **Review** | Spaced repetition. A word returns after 1, 3, 7, 14, 30 and 60 days; a miss sends it back to the start. A word only moves up when it was due, so practising it again the same day does not count twice. |
 | **Drills** | Endless quick reps for der/die/das, numbers and present-tense verb forms. |
 | **Grammar** | Reference sheets per level. A2 and B1 open with an overview of the telc exam and how the course maps to it. |
@@ -176,7 +176,15 @@ registers its units with `DE_DATA.addUnits('a2', [...])` and its reference sheet
   the third argument lists other word orders that should also be accepted.
 - Gap-fill: `c('Ich bleibe zu Hause, ___ ich krank bin.', 'weil', ['denn', 'deshalb', 'dass'], 'I am staying at home because I am ill.', 'weil sends the verb to the end.')` —
   sentence with one gap, the answer, three wrong options, English, and the reason shown afterwards.
+- Dialogue line: `d('Alice', 'Wie heißt du?', 'What is your name?')`. Question: `q('Woher kommt Bob?', 'Where does Bob come from?', ['aus Kanada', 'aus Indien', 'aus Deutschland'])`, with the right option first (options are shuffled when shown).
 - In tip and sheet HTML, `{{Guten Tag}}` renders a chip that speaks the text when tapped.
+
+Writing tasks sit on the checkpoints in `PLAN`. A form field passes when every word in `all`
+appears in the answer, or when its digits match one of `digits`; a message point passes when one
+of its `keys` starts a word. Keys are written the way `norm()` in `public/js/util.js` writes text
+(lower case, `ä` as `ae`, `ß` as `ss`). The checker makes sure every field's `show` answer and
+every model message pass their own check. The message check looks for content only; it cannot
+judge grammar, which is why the model answer is shown after the first check.
 
 The month plan (`PLAN` in `public/js/data.js`) lists the A1 units week by week, the checkpoint
 title and speaking task for each week, and which unit unlocks each drill. Plan days are stored

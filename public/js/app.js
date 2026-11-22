@@ -3,7 +3,7 @@
   'use strict';
 
   const D = window.DE_DATA;
-  const { esc, shuffle, pick, norm, lev, numToGerman, genderHint } = window.DE_UTIL;
+  const { esc, shuffle, pick, norm, lev, numToGerman, genderHint, checkField, checkMessage } = window.DE_UTIL;
   const app = document.getElementById('app');
   const $ = (q, r) => (r || document).querySelector(q);
   const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
@@ -33,6 +33,7 @@
     info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
     cup: '<path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>',
     bean: '<ellipse cx="12" cy="12" rx="6.5" ry="9.5" transform="rotate(35 12 12)"/><path d="M7.2 17.6c5.2-2 .6-8.6 9.6-11.2"/>',
+    message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
     external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
   };
   const icon = (name, cls) => '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[name] + '</svg>';
@@ -55,6 +56,7 @@
     streak: { last: 0, count: 0, best: 0 },
     drills: { gender: 0, numbers: 0, verbs: 0 }, // best streaks
     plan: emptyPlan(),                           // the A1 month plan; start 0 = not running
+    passed: {},                                  // 'dialog:u1' / 'write:cp1' -> day first completed
     settings: { theme: 'auto', slow: false, auto: true, level: '' },   // per device, never overwritten by sync
     updatedAt: 0,                                // ms, last local change
     epoch: 0,                                    // ms of the last reset/import; a higher epoch replaces older data
@@ -109,6 +111,11 @@
     const dr = raw.drills || {};
     d.drills = { gender: num(dr.gender), numbers: num(dr.numbers), verbs: num(dr.verbs) };
     d.plan = hydratePlan(raw.plan);
+    if (raw.passed && typeof raw.passed === 'object') {
+      Object.keys(raw.passed).forEach((k) => {
+        if (/^(dialog|write):[a-z0-9-]{1,32}$/.test(k) && int(raw.passed[k]) > 0) d.passed[k] = int(raw.passed[k]);
+      });
+    }
     const se = raw.settings || {};
     d.settings = {
       theme: ['auto', 'light', 'dark'].includes(se.theme) ? se.theme : 'auto',
@@ -276,11 +283,20 @@
         done: seen === cs.length, href: '#/unit/' + s.unit.id + '/' + s.half });
       const name = drillFor(s, 0);
       if (name) out.push(drill(name));
+      if (s.half === 'b' && s.unit.dialog) {
+        out.push({ key: 'dialog', icon: 'message', label: 'Dialogue: ' + s.unit.dialog.title, sub: 'Listen and read, then answer three questions.',
+          done: !!S.passed['dialog:' + s.unit.id], href: '#/dialog/' + s.unit.id });
+      }
       out.push({ key: 'speak', icon: 'volume', label: 'Say it out loud', manual: true, done: !!t.speak,
         sub: s.half === 'a' ? 'Tap each new word, listen, and repeat it.' : 'Say each sentence of this part after the voice, twice.' });
     } else if (s.kind === 'check') {
       const best = S.plan.checks[s.id] || 0;
       out.push({ key: 'quiz', icon: 'award', label: s.check.title + ': quiz', sub: (best ? 'Best so far ' + best + '%. ' : '') + 'Pass mark ' + PLAN.pass + '%.', done: best >= PLAN.pass, href: '#/check/' + s.id });
+      const w = s.check.write;
+      if (w) {
+        out.push({ key: 'write', icon: 'edit', label: 'Writing: ' + w.title, sub: w.type === 'form' ? 'Read a short text and fill in a form.' : 'Write a short message of about 30 words.',
+          done: !!S.passed['write:' + s.id], href: '#/write/' + s.id });
+      }
       out.push({ key: 'speak', icon: 'volume', label: 'Speaking task', manual: true, done: !!t.speak, subHtml: fmt(s.check.speak) });
     } else {
       out.push({ key: 'extra', icon: 'target', label: 'Weakest words round', sub: 'Twelve of the words you know least.', done: !!t.extra, href: '#/review/extra' });
@@ -350,7 +366,8 @@
   const sorted = (o) => Object.keys(o).sort().map((k) => [k, o[k]]);
   const stateSig = (s) => JSON.stringify([s.epoch, s.xp, s.sessions, s.streak, s.drills,
     Object.keys(s.cards).sort().map((k) => [k, s.cards[k].box, s.cards[k].due, s.cards[k].seen, s.cards[k].ok]),
-    [s.plan.id, s.plan.start, s.plan.pace, s.plan.setAt, sorted(s.plan.ticks), sorted(s.plan.done), sorted(s.plan.checks)]]);
+    [s.plan.id, s.plan.start, s.plan.pace, s.plan.setAt, sorted(s.plan.ticks), sorted(s.plan.done), sorted(s.plan.checks)],
+    sorted(s.passed)]);
 
   /* Plans: a newer plan replaces an older one. Within one plan, start and pace follow the
      latest change, and work done on any device counts. */
@@ -394,6 +411,9 @@
     out.streak = { last: cur.last, count: cur.count, best: Math.max(ls.best, rs.best, cur.count) };
     Object.keys(out.drills).forEach((k) => { out.drills[k] = Math.max(local.drills[k], remote.drills[k]); });
     out.plan = mergePlan(local.plan, remote.plan);
+    new Set(Object.keys(local.passed).concat(Object.keys(remote.passed))).forEach((k) => {
+      out.passed[k] = Math.min(local.passed[k] || Infinity, remote.passed[k] || Infinity);
+    });
     return out;
   };
 
@@ -587,7 +607,7 @@
 
   /* Called when sync brought in changes from another device. Never interrupts an exercise. */
   const refreshAfterSync = () => {
-    if (sess || /^#\/(practice|check|review\/extra|drills\/)/.test(location.hash)) { updateChrome(curSection); return; }
+    if (sess || /^#\/(practice|check|review\/extra|drills\/|dialog|write)/.test(location.hash)) { updateChrome(curSection); return; }
     route(true);
   };
 
@@ -628,7 +648,7 @@
     const tasks = stepTasks(s);
     const first = tasks.find((t) => !t.done);
     const cls = (t) => 'btn' + (t === first ? ' primary' : '');
-    const verb = { review: 'Review', quiz: 'Start', learn: 'Open', drill: 'Drill', extra: 'Start' };
+    const verb = { review: 'Review', quiz: 'Start', learn: 'Open', drill: 'Drill', extra: 'Start', dialog: 'Open', write: 'Write' };
     return '<ol class="plan tasks">' + tasks.map((t) => {
       let act = '';
       if (t.manual) act = t.done ? '' : '<button type="button" class="' + cls(t) + '" data-tick="speak">Done</button>';
@@ -780,6 +800,12 @@
           ${sents.map((x) => `<div class="sent">${sayBtn(x.de)}<div><b>${esc(x.de)}</b><span class="en">${esc(x.en)}</span></div></div>`).join('')}
         </div>
       </section>
+
+      ${u.dialog && h !== 'a' ? `<section>
+        <div class="sec-h"><h2>Dialogue</h2><small>Listen and read, then answer</small></div>
+        <a class="card dl-card" href="#/dialog/${u.id}"><span class="ico">${icon(S.passed['dialog:' + u.id] ? 'check' : 'message')}</span>
+          <div><b>${esc(u.dialog.title)}</b><small>${esc(u.dialog.setting)}</small></div>${icon('arrow-right')}</a>
+      </section>` : ''}
 
       <div class="cta">
         <div><b>${h ? (hSeen === words.length ? 'This part is practised' : 'Ready? About 5 minutes.')
@@ -1399,8 +1425,200 @@
   };
 
   /* ====================================================================
+     Dialogues: listen and read, then answer three questions
+     ==================================================================== */
+  const PITCH = [1.12, 0.86, 1];   // per speaker, so two people sound different on one voice
+
+  const viewDialog = (u) => {
+    const dl = u.dialog;
+    const tok = viewTok;
+    const who = Array.from(new Set(dl.lines.map((l) => l.who)));
+    const wi = (w) => Math.min(who.indexOf(w), 2);
+    const key = 'dialog:' + u.id;
+    const qs = dl.questions.map((x) => ({ x, opts: shuffle(x.opts.map((o, i) => ({ o, ok: i === 0 }))), tries: 0, done: false }));
+    const back = planOn() ? '#/' : '#/unit/' + u.id;
+
+    app.innerHTML = `
+      ${backLink('#/unit/' + u.id, esc(u.title))}
+      <span class="eyebrow">Dialog · listen and read</span>
+      <h1>${esc(dl.title)}</h1>
+      <p class="lede">${esc(dl.setting)} Listen first with the text hidden if you can, then read along.</p>
+      <div class="row dl-ctl">
+        <button type="button" class="btn primary" id="playAll" ${canListen() ? '' : 'disabled title="No German voice on this device"'}>${icon('volume')}<span>Play the dialogue</span></button>
+        <label class="toggle"><input type="checkbox" id="hideDe"> Hide the text</label>
+        <label class="toggle"><input type="checkbox" id="showEn"> Show English</label>
+      </div>
+      <div class="card dialog" id="dialog">
+        ${dl.lines.map((l, i) => `<div class="dl-line" data-i="${i}"><span class="who w${wi(l.who)}">${esc(l.who)}</span>
+          <div><button type="button" class="dl-de" data-line="${i}" title="Listen">${esc(l.de)}</button><span class="en">${esc(l.en)}</span></div></div>`).join('')}
+      </div>
+      <section>
+        <div class="sec-h"><h2>Questions</h2><small>Wrong answers can be tried again</small></div>
+        <div class="dl-qs">${qs.map((q, qi) => `<div class="card dl-q" data-q="${qi}">
+          <b>${qi + 1}. ${esc(q.x.de)}</b><small>${esc(q.x.en)}</small>
+          <div class="opts">${q.opts.map((o, k) => `<button type="button" class="opt" data-k="${k}"><span>${esc(o.o)}</span></button>`).join('')}</div></div>`).join('')}</div>
+        <div class="note dl-done" id="dlDone" hidden aria-live="polite"></div>
+      </section>`;
+
+    /* speech: one line, or all of them in a row with the current line highlighted */
+    let playing = false;
+    const mark = (i) => $$('.dl-line').forEach((el) => el.classList.toggle('on', +el.dataset.i === i));
+    const setBtn = () => { $('#playAll span').textContent = playing ? 'Stop' : 'Play the dialogue'; };
+    const speak = (i, then) => {
+      const l = dl.lines[i];
+      const ut = new SpeechSynthesisUtterance(l.de);
+      ut.lang = 'de-DE';
+      if (voice) ut.voice = voice;
+      ut.rate = S.settings.slow ? 0.7 : 0.92;
+      ut.pitch = PITCH[wi(l.who)];
+      ut.onstart = () => { if (tok === viewTok) mark(i); };
+      ut.onend = () => { if (tok !== viewTok) return; mark(-1); if (then) then(); };
+      synth.speak(ut);
+    };
+    const stop = () => { playing = false; if (synth) synth.cancel(); mark(-1); setBtn(); };
+    $('#playAll').onclick = () => {
+      if (!synth) return;
+      if (playing) { stop(); return; }
+      synth.cancel();
+      playing = true;
+      setBtn();
+      const next = (i) => {
+        if (tok !== viewTok || !playing) return;
+        if (i >= dl.lines.length) { stop(); return; }
+        speak(i, () => setTimeout(() => next(i + 1), 350));
+      };
+      next(0);
+    };
+    $$('.dl-de').forEach((b) => { b.onclick = () => { if (!synth) return; stop(); speak(+b.dataset.line); }; });
+    $('#hideDe').onchange = (e) => $('#dialog').classList.toggle('hide-de', e.target.checked);
+    $('#showEn').onchange = (e) => $('#dialog').classList.toggle('show-en', e.target.checked);
+
+    /* questions */
+    $$('.dl-q').forEach((card) => {
+      const q = qs[+card.dataset.q];
+      $$('.opt', card).forEach((b) => {
+        b.onclick = () => {
+          if (q.done) return;
+          const ok = q.opts[+b.dataset.k].ok;
+          q.tries++;
+          b.classList.add(ok ? 'ok' : 'bad');
+          b.disabled = true;
+          if (!ok) return;
+          q.done = true;
+          $$('.opt', card).forEach((x) => { x.disabled = true; });
+          if (q.tries === 1) S.xp += 5;
+          if (qs.every((x) => x.done)) {
+            if (!S.passed[key]) S.passed[key] = dayNum();
+            planCheck();
+            const first = qs.filter((x) => x.tries === 1).length;
+            const box = $('#dlDone');
+            box.innerHTML = '<b>' + icon('check') + ' Fertig!</b> ' + first + ' of ' + qs.length + ' right first time. ' +
+              'Now read the dialogue aloud, taking both parts.' +
+              '<div class="row"><a class="btn primary" href="' + back + '">' + (planOn() ? 'Today’s plan' : 'Back to the unit') + '</a></div>';
+            box.hidden = false;
+          }
+          touchStreak(); save(); updateChrome('learn');
+        };
+      });
+    });
+  };
+
+  /* ====================================================================
+     Writing: a form to fill in from a short text, or a short message
+     ==================================================================== */
+  const viewWrite = (step) => {
+    const w = step.check.write;
+    const key = 'write:' + step.id;
+    const was = !!S.passed[key];
+    const finish = () => {
+      if (!S.passed[key]) { S.passed[key] = dayNum(); S.xp += 20; }
+      planCheck(); touchStreak(); save(); updateChrome('learn');
+    };
+
+    const head = `
+      ${backLink(planOn() ? '#/' : '#/plan', planOn() ? 'Today’s plan' : 'Plan')}
+      <span class="eyebrow">Schreiben · writing</span>
+      <h1>${esc(w.title)}</h1>
+      <p class="lede">${esc(w.intro)}${was ? ' <span class="pill ok">' + icon('check') + 'Done before</span>' : ''}</p>`;
+
+    if (w.type === 'form') {
+      app.innerHTML = head + `
+        <div class="card wr-text"><div class="row"><b>Der Text</b>${sayBtn(w.text)}</div><p>${esc(w.text)}</p></div>
+        <section>
+          <div class="sec-h"><h2>Das Formular</h2><small>Answers can be short: one word or a number</small></div>
+          <div class="card settings wr-form">
+            ${w.fields.map((fl, i) => `<label class="line-item"><span><b>${esc(fl.label)}</b><br><small>${esc(fl.en)}</small></span>
+              <input type="text" id="f${i}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="${esc(fl.label)}"></label>`).join('')}
+          </div>
+          <div class="row wr-actions"><button type="button" class="btn primary" id="wcheck">Check</button><button type="button" class="btn" id="wshow" hidden>Show answers</button></div>
+          <p class="note" id="wres" hidden aria-live="polite"></p>
+        </section>`;
+      const inputs = w.fields.map((fl, i) => $('#f' + i));
+      const check = () => {
+        const res = w.fields.map((fl, i) => checkField(inputs[i].value, fl));
+        inputs.forEach((inp, i) => { inp.classList.toggle('ok', res[i]); inp.classList.toggle('bad', !res[i]); });
+        const n = res.filter(Boolean).length;
+        const out = $('#wres');
+        out.hidden = false;
+        if (n === res.length) {
+          finish();
+          out.innerHTML = '<b class="ok-t">' + icon('check') + ' Alles richtig!</b> Every field is filled in correctly.';
+        } else {
+          out.innerHTML = n + ' of ' + res.length + ' right. Read the text again for the fields in red.';
+          $('#wshow').hidden = false;
+        }
+      };
+      $('#wcheck').onclick = check;
+      inputs.forEach((inp) => { inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } }; });
+      $('#wshow').onclick = () => {
+        inputs.forEach((inp, i) => { if (!checkField(inp.value, w.fields[i])) inp.value = w.fields[i].show; });
+        check();
+      };
+      inputs[0].focus();
+      return;
+    }
+
+    /* message */
+    app.innerHTML = head + `
+      <div class="card"><b>Write about these three points:</b>
+        <ol class="wr-points">${w.points.map((pt, i) => `<li id="pt${i}">${esc(pt.en)}</li>`).join('')}</ol>
+        <small>Start with a greeting (for example “Liebe Alice,”) and end with one (for example “Viele Grüße”).</small></div>
+      <section>
+        <div class="typer"><textarea id="msg" rows="8" placeholder="Liebe …" aria-label="Your message" spellcheck="false"></textarea>${umlautBar()}</div>
+        <div class="row wr-actions"><button type="button" class="btn primary" id="wcheck">Check</button><small id="wcount">0 words</small></div>
+        <div class="card wr-res" id="wres" hidden aria-live="polite"></div>
+        <details class="card tip" id="wmodel" hidden><summary>A model answer</summary><div class="body"><p>${sayBtn(w.model)} ${esc(w.model)}</p></div></details>
+        <p class="note">The check looks for a greeting, each point, a closing and the length. It cannot correct grammar or spelling, so compare your text with the model answer.</p>
+      </section>`;
+    const msg = $('#msg');
+    const count = () => { const n = msg.value.trim() ? msg.value.trim().split(/\s+/).length : 0; $('#wcount').textContent = n + ' word' + (n === 1 ? '' : 's') + ' (aim for about 30)'; };
+    msg.oninput = count;
+    count();
+    $('#wcheck').onclick = () => {
+      const r = checkMessage(msg.value, w);
+      const line = (ok, text) => '<li class="' + (ok ? 'ok-t' : 'bad-t') + '">' + icon(ok ? 'check' : 'x') + ' ' + esc(text) + '</li>';
+      $('#wres').innerHTML = (r.ok ? '<b class="ok-t">' + icon('check') + ' Gut gemacht!</b> All points are there.' : '<b>Almost there.</b> Look at the red lines.') +
+        '<ul class="wr-check">' + line(r.greet, 'Greeting at the start') +
+        w.points.map((pt, i) => line(r.points[i], pt.en)).join('') +
+        line(r.close, 'Greeting at the end') + line(r.long, r.count + ' words (at least ' + w.min + ')') + '</ul>';
+      $('#wres').hidden = false;
+      $('#wmodel').hidden = false;
+      w.points.forEach((pt, i) => $('#pt' + i).classList.toggle('ok-t', r.points[i]));
+      if (r.ok) finish();
+    };
+    msg.focus();
+  };
+
+  /* ====================================================================
      Plan page
      ==================================================================== */
+  const writingList = () => `<section>
+      <div class="sec-h"><h2>Writing tasks</h2><small>One per checkpoint, in the style of the A1 exams</small></div>
+      <div class="res">${BASE_STEPS.filter((x) => x.kind === 'check' && x.check.write).map((x) => `<a href="#/write/${x.id}"><div>
+        <b>${esc(x.check.write.title)}${S.passed['write:' + x.id] ? ' <span class="pill ok">' + icon('check') + 'Done</span>' : ''}</b>
+        <span>${esc(x.check.title)} · ${x.check.write.type === 'form' ? 'fill in a form' : 'write a message'}</span></div>${icon('arrow-right')}</a>`).join('')}</div>
+    </section>`;
+
   const viewPlan = () => {
     if (!planOn()) {
       const today = dayNum();
@@ -1414,7 +1632,8 @@
           <div class="sec-h"><h2>Pick a pace</h2><small>You can change it later without losing anything</small></div>
           <div class="paces">${PACES.map((n) => `<button type="button" class="card pace" data-pace="${n}"><b>${n} days</b><span>About ${PACE_MIN[n]} minutes a day</span><small>Finish around ${fmtDay(today + n - 1)}</small></button>`).join('')}</div>
           <p class="note" style="margin-top:12px">Words you have already practised count straight away. The plan covers this app’s A1 course, about ${words} words. For an A1 exam, add real listening and reading as well: the Guide lists free resources.</p>
-        </section>`;
+        </section>
+        ${writingList()}`;
       $$('[data-pace]').forEach((b) => { b.onclick = () => { newPlan(+b.dataset.pace); save(); route(); }; });
       return;
     }
@@ -1464,6 +1683,8 @@
           <ol class="days">${ps.steps.map((x, i) => (x.week === wi ? row(x, i) : '')).join('')}</ol>
         </div>`).join('')}</div>
       </section>
+
+      ${writingList()}
 
       <section>
         <div class="sec-h"><h2>Plan settings</h2></div>
@@ -1651,6 +1872,8 @@
     if (a === 'unit' && unitById(b)) viewUnit(unitById(b), half);
     else if (a === 'practice' && unitById(b)) startUnit(unitById(b), half);
     else if (a === 'check' && checkStep(b) && planOn()) startCheck(checkStep(b));
+    else if (a === 'dialog' && unitById(b) && unitById(b).dialog) viewDialog(unitById(b));
+    else if (a === 'write' && checkStep(b) && checkStep(b).check.write) viewWrite(checkStep(b));
     else if (a === 'plan' || a === 'check') viewPlan();
     else if (a === 'review') { section = 'review'; if (b === 'extra' && seenCards().length) startReview(true); else viewReview(); }
     else if (a === 'drills') { section = 'drills'; ({ gender: viewGender, numbers: viewNumbers, verbs: viewVerbs }[b] || viewDrills)(); }
@@ -1675,7 +1898,7 @@
     if (sayEl) { say(sayEl.dataset.say); return; }
     const key = e.target.closest('[data-ins]');
     if (key) {
-      const inp = $('#ans');
+      const inp = lastField && document.contains(lastField) ? lastField : $('#ans') || $('#msg');
       if (!inp || inp.disabled) return;
       const a = inp.selectionStart == null ? inp.value.length : inp.selectionStart;
       const z = inp.selectionEnd == null ? a : inp.selectionEnd;
@@ -1685,11 +1908,14 @@
     }
   });
 
+  let lastField = null;
+  document.addEventListener('focusin', (e) => { if (e.target.matches('input[type="text"], textarea')) lastField = e.target; });
+
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = e.target.tagName;
     if (e.key === 'Enter') {
-      if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'SELECT') return;   // native activation
+      if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'SELECT' || tag === 'TEXTAREA') return;   // native activation
       const b = $('#next') || $('#check');
       if (b && !b.disabled) { e.preventDefault(); b.click(); }
       return;

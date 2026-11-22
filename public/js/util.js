@@ -101,5 +101,29 @@
     return null;
   };
 
-  root.DE_UTIL = { esc, shuffle, pick, norm, lev, numToGerman, genderHint };
+  /* Writing checks. They look for content, not grammar: a form field passes if every word in
+     `all` appears or its digits equal one of `digits`; a message point passes if one of its keys
+     starts a word. Keys and words are compared in the norm() form. */
+  const words = (text) => norm(text).split(' ').filter(Boolean);
+  const hasKey = (text, key) => (' ' + norm(text) + ' ').includes(' ' + key);
+  const checkField = (value, f) => {
+    const w = words(value);
+    const digits = String(value).replace(/\D/g, '');
+    return (!!f.all && f.all.every((k) => w.includes(k))) || (!!f.digits && digits !== '' && f.digits.includes(digits));
+  };
+  const checkMessage = (text, t) => {
+    const n = norm(text);
+    const count = words(text).length;
+    const r = {
+      greet: t.greet.some((k) => n.startsWith(k)),
+      points: t.points.map((pt) => pt.keys.some((k) => hasKey(text, k))),
+      close: t.close.some((k) => hasKey(text, k)),
+      count,
+      long: count >= t.min,
+    };
+    r.ok = r.greet && r.close && r.long && r.points.every(Boolean);
+    return r;
+  };
+
+  root.DE_UTIL = { esc, shuffle, pick, norm, lev, numToGerman, genderHint, checkField, checkMessage };
 })(typeof window !== 'undefined' ? window : globalThis);
